@@ -9,6 +9,7 @@
     "build": "prisma generate && tsc",
     "start": "node dist/server.js",
     "start:worker": "node dist/workers/email.worker.js",
+    "start:production": "node dist/start-production.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy"
   },
