@@ -1,426 +1,151 @@
 import { useEffect, useState } from "react";
-import {
-  getScheduledEmails,
-  getFailedEmails,
-  getSentEmails,
-  scheduleCampaign,
-} from "./api";
-
-type Email = {
-  id: string;
-  recipient: string;
-  subject: string;
-  scheduledAt: string;
-  sentAt: string | null;
-  status: "SCHEDULED" | "PROCESSING" | "SENT" | "FAILED";
-  campaign: { senderEmail: string };
-};
-
-function formatDate(date: string | null) {
-  return date ? new Date(date).toLocaleString() : "—";
-}
+import { getMe, getScheduledEmails, getSentEmails, getSlackStatus, logout, type CurrentUser } from "./api";
+import type { Email } from "./types";
+import { Header } from "./components/Header";
+import { LoginScreen } from "./components/LoginScreen";
+import { Button } from "./components/Button";
+import { EmailTable } from "./components/EmailTable";
+import { ComposeModal } from "./components/ComposeModal";
+import { Toast } from "./components/Toast";
 
 function App() {
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [user, setUser] = useState<CurrentUser>(null);
+  const [slackConnected, setSlackConnected] = useState(false);
+
   const [showCompose, setShowCompose] = useState(false);
-  const [senderEmail, setSenderEmail] = useState("");
-  const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
-  const [recipients, setRecipients] = useState<string[]>([]);
-  const [startTime, setStartTime] = useState("");
-  const [delayMs, setDelayMs] = useState(2000);
-  const [hourlyLimit, setHourlyLimit] = useState(200);
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
+  const [activeTab, setActiveTab] = useState<"scheduled" | "sent">("scheduled");
   const [scheduledEmails, setScheduledEmails] = useState<Email[]>([]);
   const [sentEmails, setSentEmails] = useState<Email[]>([]);
-  const [failedEmails, setFailedEmails] = useState<Email[]>([]);
+  const [loadingEmails, setLoadingEmails] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [activeTab, setActiveTab] = useState<"scheduled" | "sent">(
-    "scheduled",
-  );
+  const [toast, setToast] = useState<{ message: string; tone: "success" | "error" | "info" } | null>(null);
 
-  const loadEmails = async () => {
+  async function refreshSession() {
+    const currentUser = await getMe().catch(() => null);
+    setUser(currentUser);
+    if (currentUser) {
+      setSlackConnected(await getSlackStatus().catch(() => false));
+    }
+  }
+
+  async function loadEmails() {
     try {
+      setLoadingEmails(true);
       setLoadError("");
-      const [scheduled, sent, failed] = await Promise.all([
-        getScheduledEmails(),
-        getSentEmails(),
-        getFailedEmails(),
-      ]);
-
+      const [scheduled, sent] = await Promise.all([getScheduledEmails(), getSentEmails()]);
       setScheduledEmails(scheduled.emails || []);
       setSentEmails(sent.emails || []);
-      setFailedEmails(failed.emails || []);
     } catch (error) {
-      console.error("Failed to load emails:", error);
-      setLoadError(
-        error instanceof Error
-          ? error.message
-          : "Unable to load campaign data.",
-      );
+      setLoadError(error instanceof Error ? error.message : "Unable to load campaign data.");
+    } finally {
+      setLoadingEmails(false);
     }
-  };
+  }
 
   useEffect(() => {
-    const timer = window.setTimeout(() => void loadEmails(), 0);
-    return () => window.clearTimeout(timer);
+    // Handle redirect back from Google/Slack OAuth (?login=success, ?slack=connected, ...)
+    const params = new URLSearchParams(window.location.search);
+    const login = params.get("login");
+    const slack = params.get("slack");
+
+    if (login === "success") setToast({ message: "Signed in successfully.", tone: "success" });
+    else if (login === "failed") setToast({ message: "Google sign-in failed. Please try again.", tone: "error" });
+    else if (slack === "connected") setToast({ message: "Slack connected.", tone: "success" });
+    else if (slack === "failed") setToast({ message: "Slack connection failed.", tone: "error" });
+
+    if (login || slack) window.history.replaceState({}, "", window.location.pathname);
+
+    refreshSession().finally(() => setCheckingAuth(false));
   }, []);
 
-  const handleSchedule = async () => {
-    setMessage("");
+  useEffect(() => {
+    if (user) void loadEmails();
+  }, [user]);
 
-    if (
-      !senderEmail ||
-      !subject ||
-      !body ||
-      recipients.length === 0 ||
-      !startTime
-    ) {
-      setMessage("Please fill all fields and upload a valid CSV.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const result = await scheduleCampaign({
-        senderEmail,
-        subject,
-        body,
-        recipients,
-        startTime,
-        delayMs,
-        hourlyLimit,
-      });
-
-      setMessage(
-        `Campaign scheduled successfully. ${result.recipientCount} emails queued.`,
-      );
-
-      await loadEmails();
-    } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "Failed to schedule campaign",
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (showCompose) {
-    return (
-      <div className="min-h-screen bg-slate-100 p-8">
-        <div className="mx-auto max-w-4xl">
-          <button
-            onClick={() => setShowCompose(false)}
-            className="mb-6 text-sm font-medium text-slate-600 hover:text-slate-900"
-          >
-            ← Back to Dashboard
-          </button>
-
-          <div className="rounded-xl bg-white p-8 shadow-sm">
-            <h2 className="text-2xl font-bold text-slate-900">
-              Compose Email Campaign
-            </h2>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Create and schedule an email campaign.
-            </p>
-
-            <div className="mt-8 space-y-6">
-              {/* Sender */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Sender Email
-                </label>
-
-                <input
-                  type="email"
-                  value={senderEmail}
-                  onChange={(e) => setSenderEmail(e.target.value)}
-                  placeholder="sender@example.com"
-                  className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-blue-500"
-                />
-              </div>
-
-              {/* Subject */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Subject
-                </label>
-
-                <input
-                  type="text"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  placeholder="Enter email subject"
-                  className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-blue-500"
-                />
-              </div>
-
-              {/* Body */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Email Body
-                </label>
-
-                <textarea
-                  rows={8}
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  placeholder="Write your email..."
-                  className="w-full resize-none rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-blue-500"
-                />
-              </div>
-
-              {/* CSV */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Recipients CSV
-                </label>
-
-                <div className="rounded-lg border-2 border-dashed border-slate-300 p-8 text-center">
-                  <p className="text-sm text-slate-500">
-                    Upload a CSV file containing recipient email addresses
-                  </p>
-
-                  <input
-                    type="file"
-                    accept=".csv"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-
-                      if (!file) return;
-
-                      const reader = new FileReader();
-
-                      reader.onload = (event) => {
-                        const text = String(event.target?.result || "");
-
-                        const emails = text
-                          .split(/\r?\n/)
-                          .map((line) => line.trim().toLowerCase())
-                          .filter((line) =>
-                            /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(line),
-                          );
-
-                        setRecipients([...new Set(emails)]);
-                      };
-
-                      reader.readAsText(file);
-                    }}
-                    className="mt-4 block w-full text-sm text-slate-600"
-                  />
-
-                  <p className="mt-2 text-xs text-slate-400">
-                    {recipients.length} recipients loaded
-                  </p>
-                </div>
-              </div>
-
-              {/* Scheduling */}
-              <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">
-                    Start Time
-                  </label>
-
-                  <input
-                    type="datetime-local"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-3 outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">
-                    Delay Between Emails (ms)
-                  </label>
-
-                  <input
-                    type="number"
-                    value={delayMs}
-                    onChange={(e) => setDelayMs(Number(e.target.value))}
-                    min={0}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-3 outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">
-                    Hourly Limit
-                  </label>
-
-                  <input
-                    type="number"
-                    value={hourlyLimit}
-                    onChange={(e) => setHourlyLimit(Number(e.target.value))}
-                    min={1}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-3 outline-none focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
-              {message && (
-                <div className="rounded-lg bg-slate-100 p-4 text-sm text-slate-700">
-                  {message}
-                </div>
-              )}
-
-              {/* Action */}
-              <div className="flex justify-end gap-3 border-t border-slate-200 pt-6">
-                <button
-                  onClick={() => setShowCompose(false)}
-                  className="rounded-lg border border-slate-300 px-5 py-3 font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  onClick={handleSchedule}
-                  disabled={loading}
-                  className="rounded-lg bg-blue-600 px-5 py-3 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {loading ? "Scheduling..." : "Schedule Campaign"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+  async function handleLogout() {
+    await logout().catch(() => null);
+    setUser(null);
   }
+
+  if (checkingAuth) {
+    return <div className="flex min-h-screen items-center justify-center bg-slate-100 text-slate-500">Loading…</div>;
+  }
+
+  if (!user) {
+    return <LoginScreen />;
+  }
+
+  const activeEmails = activeTab === "scheduled" ? scheduledEmails : sentEmails;
 
   return (
     <div className="min-h-screen bg-slate-100">
-      {/* Sidebar */}
-      <aside className="fixed left-0 top-0 h-screen w-64 bg-slate-900 p-6 text-white">
-        <h1 className="text-2xl font-bold">ReachInbox</h1>
+      <Header user={user} slackConnected={slackConnected} onLogout={handleLogout} />
 
-        <p className="mt-2 text-sm text-slate-400">
-          Email Scheduler
-        </p>
-
-        <nav className="mt-10 space-y-2">
-          <button className="w-full rounded-lg bg-slate-800 px-4 py-3 text-left">
-            Dashboard
-          </button>
-
-          <button
-            onClick={() => setActiveTab("scheduled")}
-            className={`w-full rounded-lg px-4 py-3 text-left hover:bg-slate-800 ${
-              activeTab === "scheduled" ? "bg-slate-800 text-white" : "text-slate-300"
-            }`}
-          >
-            Scheduled
-          </button>
-
-          <button
-            onClick={() => setActiveTab("sent")}
-            className={`w-full rounded-lg px-4 py-3 text-left hover:bg-slate-800 ${
-              activeTab === "sent" ? "bg-slate-800 text-white" : "text-slate-300"
-            }`}
-          >
-            Sent
-          </button>
-        </nav>
-      </aside>
-
-      {/* Main */}
-      <main className="ml-64 p-8">
-        <div className="flex items-center justify-between">
+      <main className="mx-auto max-w-6xl p-8">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-bold text-slate-900">
-              Dashboard
-            </h2>
-
-            <p className="mt-1 text-slate-500">
-              Manage your scheduled email campaigns.
-            </p>
+            <h2 className="text-3xl font-bold text-slate-900">Dashboard</h2>
+            <p className="mt-1 text-slate-500">Manage your scheduled email campaigns.</p>
           </div>
-
-          <button
-            onClick={() => setShowCompose(true)}
-            className="rounded-lg bg-blue-600 px-5 py-3 font-medium text-white hover:bg-blue-700"
-          >
-            + Compose Email
-          </button>
+          <Button onClick={() => setShowCompose(true)}>+ Compose Email</Button>
         </div>
 
-        {/* Stats */}
         <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-3">
           <div className="rounded-xl bg-white p-6 shadow-sm">
             <p className="text-sm text-slate-500">Scheduled</p>
-            <p className="mt-2 text-3xl font-bold text-slate-900">
-              {scheduledEmails.length}
-            </p>
+            <p className="mt-2 text-3xl font-bold text-slate-900">{scheduledEmails.length}</p>
           </div>
-
           <div className="rounded-xl bg-white p-6 shadow-sm">
             <p className="text-sm text-slate-500">Sent</p>
             <p className="mt-2 text-3xl font-bold text-slate-900">
-              {sentEmails.length}
+              {sentEmails.filter((e) => e.status === "SENT").length}
             </p>
           </div>
-
           <div className="rounded-xl bg-white p-6 shadow-sm">
             <p className="text-sm text-slate-500">Failed</p>
             <p className="mt-2 text-3xl font-bold text-slate-900">
-              {failedEmails.length}
+              {sentEmails.filter((e) => e.status === "FAILED").length}
             </p>
           </div>
         </div>
 
-        {/* Campaigns */}
         <div className="mt-8 rounded-xl bg-white shadow-sm">
-          <div className="border-b border-slate-200 p-6">
-            <div className="flex items-center justify-between gap-4">
-              <h3 className="text-lg font-semibold text-slate-900">
-                {activeTab === "scheduled" ? "Scheduled Emails" : "Sent Emails"}
-              </h3>
+          <div className="flex items-center justify-between gap-4 border-b border-slate-200 p-6">
+            <div className="flex gap-2">
               <button
-                onClick={() => void loadEmails()}
-                className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                onClick={() => setActiveTab("scheduled")}
+                className={`rounded-lg px-4 py-2 text-sm font-medium ${
+                  activeTab === "scheduled" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+                }`}
               >
-                Refresh
+                Scheduled Emails
+              </button>
+              <button
+                onClick={() => setActiveTab("sent")}
+                className={`rounded-lg px-4 py-2 text-sm font-medium ${
+                  activeTab === "sent" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                Sent Emails
               </button>
             </div>
+            <Button variant="ghost" onClick={() => void loadEmails()}>
+              Refresh
+            </Button>
           </div>
 
-          {loadError ? (
-            <div className="p-6 text-sm text-red-700">
-              Could not load emails: {loadError}
-            </div>
-          ) : (activeTab === "scheduled" ? scheduledEmails : sentEmails).length === 0 ? (
-            <div className="p-10 text-center text-slate-500">
-              No {activeTab} emails yet.
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {(activeTab === "scheduled" ? scheduledEmails : sentEmails).map(
-                (email) => (
-                  <div key={email.id} className="grid gap-2 p-5 md:grid-cols-4">
-                    <div>
-                      <p className="font-medium text-slate-900">{email.subject}</p>
-                      <p className="text-sm text-slate-500">{email.recipient}</p>
-                    </div>
-                    <p className="text-sm text-slate-600">From: {email.campaign.senderEmail}</p>
-                    <p className="text-sm text-slate-600">
-                      {activeTab === "scheduled"
-                        ? `Scheduled: ${formatDate(email.scheduledAt)}`
-                        : `Sent: ${formatDate(email.sentAt)}`}
-                    </p>
-                    <p className="text-sm font-medium text-slate-700">{email.status}</p>
-                  </div>
-                ),
-              )}
-            </div>
-          )}
+          <EmailTable emails={activeEmails} mode={activeTab} loading={loadingEmails} error={loadError} />
         </div>
       </main>
+
+      <ComposeModal
+        open={showCompose}
+        onClose={() => setShowCompose(false)}
+        onScheduled={(message) => setToast({ message, tone: "success" })}
+      />
+
+      {toast && <Toast message={toast.message} tone={toast.tone} onDismiss={() => setToast(null)} />}
     </div>
   );
 }

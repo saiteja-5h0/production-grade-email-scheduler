@@ -13,4 +13,7 @@ export const env = {
   minDelayMs: Number(process.env.MIN_DELAY_MS || 2000),
   maxEmailsPerHour: Number(process.env.MAX_EMAILS_PER_HOUR || 200),
   workerConcurrency: Number(process.env.WORKER_CONCURRENCY || 5),
+  jwtSecret: process.env.JWT_SECRET || "dev-insecure-secret-change-me",
+  frontendUrl: process.env.FRONTEND_URL || "http://127.0.0.1:5173",
+  isProduction: process.env.NODE_ENV === "production",
 };

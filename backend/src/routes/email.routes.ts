@@ -7,7 +7,6 @@ import { searchEmails } from "../services/email-search.service.js";
 const router = Router();
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const DEMO_USER_EMAIL = "demo@reachinbox.local";
 
 function positiveInteger(value: unknown, fallback: number) {
   if (value === undefined || value === null || value === "") return fallback;
@@ -99,6 +98,8 @@ router.post("/schedule", async (req, res) => {
       });
     }
 
+    const userId = req.user!.id;
+
     const { campaign, emails } = await prisma.$transaction(async (tx) => {
       const campaign = await tx.campaign.create({
         data: {
@@ -108,16 +109,7 @@ router.post("/schedule", async (req, res) => {
           delayMs: campaignDelayMs,
           hourlyLimit: campaignHourlyLimit,
           senderEmail: senderEmail.trim().toLowerCase(),
-          user: {
-            connectOrCreate: {
-              where: { email: DEMO_USER_EMAIL },
-              create: {
-                id: "demo-user",
-                name: "Demo User",
-                email: DEMO_USER_EMAIL,
-              },
-            },
-          },
+          userId,
         },
       });
 
@@ -178,11 +170,12 @@ router.post("/schedule", async (req, res) => {
   }
 });
 
-router.get("/scheduled", async (_req, res) => {
+router.get("/scheduled", async (req, res) => {
   try {
     const emails = await prisma.email.findMany({
       where: {
         status: "SCHEDULED",
+        campaign: { userId: req.user!.id },
       },
       orderBy: {
         scheduledAt: "asc",
@@ -206,15 +199,15 @@ router.get("/scheduled", async (_req, res) => {
   }
 });
 
-router.get("/sent", async (_req, res) => {
+router.get("/sent", async (req, res) => {
   try {
+    // "Sent Emails" view includes both SENT and FAILED so status is visible in one table
     const emails = await prisma.email.findMany({
       where: {
-        status: "SENT",
+        status: { in: ["SENT", "FAILED"] },
+        campaign: { userId: req.user!.id },
       },
-      orderBy: {
-        sentAt: "desc",
-      },
+      orderBy: [{ sentAt: "desc" }, { updatedAt: "desc" }],
       include: {
         campaign: true,
       },
@@ -234,10 +227,10 @@ router.get("/sent", async (_req, res) => {
   }
 });
 
-router.get("/failed", async (_req, res) => {
+router.get("/failed", async (req, res) => {
   try {
     const emails = await prisma.email.findMany({
-      where: { status: "FAILED" },
+      where: { status: "FAILED", campaign: { userId: req.user!.id } },
       orderBy: { updatedAt: "desc" },
       include: { campaign: true },
     });

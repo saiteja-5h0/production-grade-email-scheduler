@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "worker": "tsx watch src/workers/email.worker.ts",
-    "build": "tsc",
+    "build": "prisma generate && tsc",
     "start": "node dist/server.js",
+    "start:worker": "node dist/workers/email.worker.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy"
   },
@@ -21,16 +22,20 @@
     "@elastic/elasticsearch": "^9.5.1",
     "@prisma/client": "^6.16.2",
     "bullmq": "^6.3.4",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "ioredis": "^6.0.0",
+    "jsonwebtoken": "^9.0.2",
     "nodemailer": "^10.0.7",
     "prisma": "^6.16.2"
   },
   "devDependencies": {
+    "@types/cookie-parser": "^1.4.9",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.20.2",
     "@types/nodemailer": "^8.0.1",
     "tsx": "^4.23.13",

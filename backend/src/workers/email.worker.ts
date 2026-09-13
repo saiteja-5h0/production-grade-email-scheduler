@@ -43,7 +43,9 @@ const worker = new Worker(
     );
 
     if (!rateLimit.allowed && rateLimit.retryAt) {
-      await notifyRateLimit(email.campaign.senderEmail, rateLimit.retryAt).catch((error) => console.error("Slack notification failed:", error));
+      await notifyRateLimit(email.campaign.userId, email.campaign.senderEmail, rateLimit.retryAt).catch((error) =>
+        console.error("Slack notification failed:", error)
+      );
       console.log(
         `Hourly rate limit reached for ${email.campaign.senderEmail}`
       );

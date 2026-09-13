@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import "./config/env.js";
 import { env } from "./config/env.js";
 import { prisma } from "./config/database.js";
@@ -7,6 +8,7 @@ import { redis } from "./config/redis.js";
 import { emailQueue } from "./queues/email.queue.js";
 import emailRoutes from "./routes/email.routes.js";
 import authRoutes from "./routes/auth.routes.js";
+import { attachUser } from "./middleware/auth.js";
 import { createBullBoard } from "@bull-board/api";
 import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
 import { ExpressAdapter } from "@bull-board/express";
@@ -16,9 +18,12 @@ const app = express();
 app.use(
   cors({
     origin: env.corsOrigin ? env.corsOrigin.split(",") : true,
+    credentials: true,
   })
 );
 app.use(express.json());
+app.use(cookieParser());
+app.use(attachUser);
 
 const queueDashboard = new ExpressAdapter();
 queueDashboard.setBasePath("/admin/queues");
