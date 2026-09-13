@@ -11,7 +11,7 @@ export const env = {
   port: Number(process.env.PORT || 4000),
   corsOrigin: (process.env.CORS_ORIGIN || "http://localhost:5173")
     .split(",")
-    .map((origin) => origin.trim())
+    .map((origin) => origin.trim().replace(/\/+$/, ""))
     .filter(Boolean),
   databaseUrl: process.env.DATABASE_URL,
   redisUrl: process.env.REDIS_URL,
