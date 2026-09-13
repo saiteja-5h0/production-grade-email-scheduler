@@ -1,11 +1,14 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import { fileURLToPath } from "node:url";
 import { prisma } from "./config/database.js";
 import { emailQueue } from "./queues/email.queue.js";
 import emailRoutes from "./routes/email.routes.js";
 
-dotenv.config();
+dotenv.config({
+  path: fileURLToPath(new URL("../.env", import.meta.url)),
+});
 
 const app = express();
 

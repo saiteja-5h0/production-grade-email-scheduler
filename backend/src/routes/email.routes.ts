@@ -131,4 +131,60 @@ router.post("/schedule", async (req, res) => {
   }
 });
 
+router.get("/scheduled", async (_req, res) => {
+  try {
+    const emails = await prisma.email.findMany({
+      where: {
+        status: "SCHEDULED",
+      },
+      orderBy: {
+        scheduledAt: "asc",
+      },
+      include: {
+        campaign: true,
+      },
+    });
+
+    return res.json({
+      success: true,
+      emails,
+    });
+  } catch (error) {
+    console.error("Get scheduled emails error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch scheduled emails",
+    });
+  }
+});
+
+router.get("/sent", async (_req, res) => {
+  try {
+    const emails = await prisma.email.findMany({
+      where: {
+        status: "SENT",
+      },
+      orderBy: {
+        sentAt: "desc",
+      },
+      include: {
+        campaign: true,
+      },
+    });
+
+    return res.json({
+      success: true,
+      emails,
+    });
+  } catch (error) {
+    console.error("Get sent emails error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch sent emails",
+    });
+  }
+});
+
 export default router;
