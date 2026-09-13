@@ -1,9 +1,24 @@
 import { useEffect, useState } from "react";
 import {
   getScheduledEmails,
+  getFailedEmails,
   getSentEmails,
   scheduleCampaign,
 } from "./api";
+
+type Email = {
+  id: string;
+  recipient: string;
+  subject: string;
+  scheduledAt: string;
+  sentAt: string | null;
+  status: "SCHEDULED" | "PROCESSING" | "SENT" | "FAILED";
+  campaign: { senderEmail: string };
+};
+
+function formatDate(date: string | null) {
+  return date ? new Date(date).toLocaleString() : "—";
+}
 
 function App() {
   const [showCompose, setShowCompose] = useState(false);
@@ -16,33 +31,39 @@ function App() {
   const [hourlyLimit, setHourlyLimit] = useState(200);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [scheduledEmails, setScheduledEmails] = useState<any[]>([]);
-  const [sentEmails, setSentEmails] = useState<any[]>([]);
+  const [scheduledEmails, setScheduledEmails] = useState<Email[]>([]);
+  const [sentEmails, setSentEmails] = useState<Email[]>([]);
+  const [failedEmails, setFailedEmails] = useState<Email[]>([]);
+  const [loadError, setLoadError] = useState("");
   const [activeTab, setActiveTab] = useState<"scheduled" | "sent">(
     "scheduled",
   );
 
-  void scheduledEmails;
-  void sentEmails;
-  void activeTab;
-  void setActiveTab;
-
   const loadEmails = async () => {
     try {
-      const [scheduled, sent] = await Promise.all([
+      setLoadError("");
+      const [scheduled, sent, failed] = await Promise.all([
         getScheduledEmails(),
         getSentEmails(),
+        getFailedEmails(),
       ]);
 
       setScheduledEmails(scheduled.emails || []);
       setSentEmails(sent.emails || []);
+      setFailedEmails(failed.emails || []);
     } catch (error) {
       console.error("Failed to load emails:", error);
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "Unable to load campaign data.",
+      );
     }
   };
 
   useEffect(() => {
-    loadEmails();
+    const timer = window.setTimeout(() => void loadEmails(), 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const handleSchedule = async () => {
@@ -288,11 +309,21 @@ function App() {
             Dashboard
           </button>
 
-          <button className="w-full rounded-lg px-4 py-3 text-left text-slate-300 hover:bg-slate-800">
+          <button
+            onClick={() => setActiveTab("scheduled")}
+            className={`w-full rounded-lg px-4 py-3 text-left hover:bg-slate-800 ${
+              activeTab === "scheduled" ? "bg-slate-800 text-white" : "text-slate-300"
+            }`}
+          >
             Scheduled
           </button>
 
-          <button className="w-full rounded-lg px-4 py-3 text-left text-slate-300 hover:bg-slate-800">
+          <button
+            onClick={() => setActiveTab("sent")}
+            className={`w-full rounded-lg px-4 py-3 text-left hover:bg-slate-800 ${
+              activeTab === "sent" ? "bg-slate-800 text-white" : "text-slate-300"
+            }`}
+          >
             Sent
           </button>
         </nav>
@@ -323,31 +354,71 @@ function App() {
         <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-3">
           <div className="rounded-xl bg-white p-6 shadow-sm">
             <p className="text-sm text-slate-500">Scheduled</p>
-            <p className="mt-2 text-3xl font-bold text-slate-900">0</p>
+            <p className="mt-2 text-3xl font-bold text-slate-900">
+              {scheduledEmails.length}
+            </p>
           </div>
 
           <div className="rounded-xl bg-white p-6 shadow-sm">
             <p className="text-sm text-slate-500">Sent</p>
-            <p className="mt-2 text-3xl font-bold text-slate-900">0</p>
+            <p className="mt-2 text-3xl font-bold text-slate-900">
+              {sentEmails.length}
+            </p>
           </div>
 
           <div className="rounded-xl bg-white p-6 shadow-sm">
             <p className="text-sm text-slate-500">Failed</p>
-            <p className="mt-2 text-3xl font-bold text-slate-900">0</p>
+            <p className="mt-2 text-3xl font-bold text-slate-900">
+              {failedEmails.length}
+            </p>
           </div>
         </div>
 
         {/* Campaigns */}
         <div className="mt-8 rounded-xl bg-white shadow-sm">
           <div className="border-b border-slate-200 p-6">
-            <h3 className="text-lg font-semibold text-slate-900">
-              Recent Campaigns
-            </h3>
+            <div className="flex items-center justify-between gap-4">
+              <h3 className="text-lg font-semibold text-slate-900">
+                {activeTab === "scheduled" ? "Scheduled Emails" : "Sent Emails"}
+              </h3>
+              <button
+                onClick={() => void loadEmails()}
+                className="text-sm font-medium text-blue-600 hover:text-blue-700"
+              >
+                Refresh
+              </button>
+            </div>
           </div>
 
-          <div className="p-10 text-center text-slate-500">
-            No campaigns yet.
-          </div>
+          {loadError ? (
+            <div className="p-6 text-sm text-red-700">
+              Could not load emails: {loadError}
+            </div>
+          ) : (activeTab === "scheduled" ? scheduledEmails : sentEmails).length === 0 ? (
+            <div className="p-10 text-center text-slate-500">
+              No {activeTab} emails yet.
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {(activeTab === "scheduled" ? scheduledEmails : sentEmails).map(
+                (email) => (
+                  <div key={email.id} className="grid gap-2 p-5 md:grid-cols-4">
+                    <div>
+                      <p className="font-medium text-slate-900">{email.subject}</p>
+                      <p className="text-sm text-slate-500">{email.recipient}</p>
+                    </div>
+                    <p className="text-sm text-slate-600">From: {email.campaign.senderEmail}</p>
+                    <p className="text-sm text-slate-600">
+                      {activeTab === "scheduled"
+                        ? `Scheduled: ${formatDate(email.scheduledAt)}`
+                        : `Sent: ${formatDate(email.sentAt)}`}
+                    </p>
+                    <p className="text-sm font-medium text-slate-700">{email.status}</p>
+                  </div>
+                ),
+              )}
+            </div>
+          )}
         </div>
       </main>
     </div>

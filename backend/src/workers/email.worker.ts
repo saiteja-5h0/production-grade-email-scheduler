@@ -1,6 +1,5 @@
-import dotenv from "dotenv";
-
-dotenv.config();
+import "../config/env.js";
+import { env } from "../config/env.js";
 
 import { DelayedError, Worker } from "bullmq";
 import { prisma } from "../config/database.js";
@@ -8,8 +7,10 @@ import { redis } from "../config/redis.js";
 import { checkHourlyLimit } from "../services/rate-limit.service.js";
 import { checkSendDelay } from "../services/send-delay.service.js";
 import { sendEmail } from "../services/email.service.js";
+import { indexEmail } from "../services/email-search.service.js";
+import { notifyRateLimit } from "../services/slack.service.js";
 
-const concurrency = Number(process.env.WORKER_CONCURRENCY || 5);
+const concurrency = env.workerConcurrency;
 
 const worker = new Worker(
   "email-queue",
@@ -42,6 +43,7 @@ const worker = new Worker(
     );
 
     if (!rateLimit.allowed && rateLimit.retryAt) {
+      await notifyRateLimit(email.campaign.senderEmail, rateLimit.retryAt).catch((error) => console.error("Slack notification failed:", error));
       console.log(
         `Hourly rate limit reached for ${email.campaign.senderEmail}`
       );
@@ -76,6 +78,7 @@ const worker = new Worker(
 
     try {
       const result = await sendEmail({
+        from: email.campaign.senderEmail,
         to: email.recipient,
         subject: email.subject,
         body: email.body,
@@ -91,6 +94,19 @@ const worker = new Worker(
         },
       });
 
+      await indexEmail({
+        id: email.id,
+        recipient: email.recipient,
+        subject: email.subject,
+        body: email.body,
+        status: "SENT",
+        scheduledAt: email.scheduledAt,
+        sentAt: new Date(),
+        senderEmail: email.campaign.senderEmail,
+      }).catch((indexError) =>
+        console.error("Failed to index sent email:", indexError)
+      );
+
       console.log(`Email sent to ${email.recipient}`);
 
       if (result.previewUrl) {
@@ -104,6 +120,17 @@ const worker = new Worker(
         where: { id: emailId },
         data: { status: "FAILED", error: message },
       });
+
+      await indexEmail({
+        id: email.id,
+        recipient: email.recipient,
+        subject: email.subject,
+        body: email.body,
+        status: "FAILED",
+        scheduledAt: email.scheduledAt,
+        sentAt: null,
+        senderEmail: email.campaign.senderEmail,
+      }).catch((indexError) => console.error("Failed to index email:", indexError));
 
       throw error;
     }

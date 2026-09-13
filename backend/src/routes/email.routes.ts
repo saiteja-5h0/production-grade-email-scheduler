@@ -1,8 +1,20 @@
 import { Router } from "express";
+import { env } from "../config/env.js";
 import { prisma } from "../config/database.js";
 import { emailQueue } from "../queues/email.queue.js";
+import { searchEmails } from "../services/email-search.service.js";
 
 const router = Router();
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const DEMO_USER_EMAIL = "demo@reachinbox.local";
+
+function positiveInteger(value: unknown, fallback: number) {
+  if (value === undefined || value === null || value === "") return fallback;
+
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
 
 router.post("/schedule", async (req, res) => {
   try {
@@ -22,7 +34,10 @@ router.post("/schedule", async (req, res) => {
       !Array.isArray(recipients) ||
       recipients.length === 0 ||
       !startTime ||
-      !senderEmail
+      !senderEmail ||
+      typeof subject !== "string" ||
+      typeof body !== "string" ||
+      typeof senderEmail !== "string"
     ) {
       return res.status(400).json({
         success: false,
@@ -53,9 +68,7 @@ router.post("/schedule", async (req, res) => {
           .map((email: unknown) =>
             typeof email === "string" ? email.trim().toLowerCase() : ""
           )
-          .filter((email: string) =>
-            /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-          )
+          .filter((email: string) => EMAIL_PATTERN.test(email))
       ),
     ];
 
@@ -66,52 +79,86 @@ router.post("/schedule", async (req, res) => {
       });
     }
 
-    const campaignDelayMs =
-      Number(delayMs) || Number(process.env.MIN_DELAY_MS) || 2000;
+    if (!EMAIL_PATTERN.test(senderEmail.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid senderEmail",
+      });
+    }
 
-    const campaignHourlyLimit =
-      Number(hourlyLimit) || Number(process.env.MAX_EMAILS_PER_HOUR) || 200;
+    const campaignDelayMs = positiveInteger(delayMs, env.minDelayMs);
+    const campaignHourlyLimit = positiveInteger(
+      hourlyLimit,
+      env.maxEmailsPerHour
+    );
 
-    const campaign = await prisma.campaign.create({
-      data: {
-        userId: "demo-user",
-        subject,
-        body,
-        startTime: scheduledStart,
-        delayMs: campaignDelayMs,
-        hourlyLimit: campaignHourlyLimit,
-        senderEmail,
-      },
-    });
+    if (!campaignDelayMs || !campaignHourlyLimit) {
+      return res.status(400).json({
+        success: false,
+        message: "delayMs and hourlyLimit must be positive integers",
+      });
+    }
 
-    const emails = [];
-
-    for (let index = 0; index < cleanRecipients.length; index += 1) {
-      const scheduledAt = new Date(
-        scheduledStart.getTime() + index * campaignDelayMs
-      );
-
-      const email = await prisma.email.create({
+    const { campaign, emails } = await prisma.$transaction(async (tx) => {
+      const campaign = await tx.campaign.create({
         data: {
-          campaignId: campaign.id,
-          recipient: cleanRecipients[index],
           subject,
           body,
-          scheduledAt,
+          startTime: scheduledStart,
+          delayMs: campaignDelayMs,
+          hourlyLimit: campaignHourlyLimit,
+          senderEmail: senderEmail.trim().toLowerCase(),
+          user: {
+            connectOrCreate: {
+              where: { email: DEMO_USER_EMAIL },
+              create: {
+                id: "demo-user",
+                name: "Demo User",
+                email: DEMO_USER_EMAIL,
+              },
+            },
+          },
         },
       });
 
-      emails.push(email);
-    }
-
-    for (const email of emails) {
-      const delay = Math.max(0, email.scheduledAt.getTime() - Date.now());
-
-      await emailQueue.add(
-        "send-email",
-        { emailId: email.id },
-        { jobId: email.id, delay, attempts: 3 }
+      const emails = await Promise.all(
+        cleanRecipients.map((recipient, index) =>
+          tx.email.create({
+            data: {
+              campaignId: campaign.id,
+              recipient,
+              subject,
+              body,
+              scheduledAt: new Date(
+                scheduledStart.getTime() + index * campaignDelayMs
+              ),
+            },
+          })
+        )
       );
+
+      return { campaign, emails };
+    });
+
+    try {
+      await emailQueue.addBulk(
+        emails.map((email) => ({
+          name: "send-email",
+          data: { emailId: email.id },
+          opts: {
+            jobId: email.id,
+            delay: Math.max(0, email.scheduledAt.getTime() - Date.now()),
+            attempts: 3,
+            backoff: { type: "exponential" as const, delay: 1000 },
+          },
+        }))
+      );
+    } catch (queueError) {
+      await Promise.allSettled(
+        emails.map((email) => emailQueue.remove(email.id))
+      );
+      await prisma.campaign.delete({ where: { id: campaign.id } });
+      throw queueError;
     }
 
     return res.status(201).json({
@@ -183,6 +230,37 @@ router.get("/sent", async (_req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch sent emails",
+    });
+  }
+});
+
+router.get("/failed", async (_req, res) => {
+  try {
+    const emails = await prisma.email.findMany({
+      where: { status: "FAILED" },
+      orderBy: { updatedAt: "desc" },
+      include: { campaign: true },
+    });
+
+    return res.json({ success: true, emails });
+  } catch (error) {
+    console.error("Get failed emails error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch failed emails",
+    });
+  }
+});
+
+router.get("/search", async (req, res) => {
+  try {
+    const query = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    return res.json({ success: true, emails: await searchEmails(query) });
+  } catch (error) {
+    console.error("Search emails error:", error);
+    return res.status(503).json({
+      success: false,
+      message: "Email search is temporarily unavailable",
     });
   }
 });

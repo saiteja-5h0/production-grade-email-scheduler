@@ -1,36 +1,51 @@
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
-import { fileURLToPath } from "node:url";
+import "./config/env.js";
+import { env } from "./config/env.js";
 import { prisma } from "./config/database.js";
+import { redis } from "./config/redis.js";
 import { emailQueue } from "./queues/email.queue.js";
 import emailRoutes from "./routes/email.routes.js";
-
-dotenv.config({
-  path: fileURLToPath(new URL("../.env", import.meta.url)),
-});
+import authRoutes from "./routes/auth.routes.js";
+import { createBullBoard } from "@bull-board/api";
+import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
+import { ExpressAdapter } from "@bull-board/express";
 
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: env.corsOrigin ? env.corsOrigin.split(",") : true,
+  })
+);
 app.use(express.json());
+
+const queueDashboard = new ExpressAdapter();
+queueDashboard.setBasePath("/admin/queues");
+createBullBoard({
+  queues: [new BullMQAdapter(emailQueue)],
+  serverAdapter: queueDashboard,
+});
+app.use("/admin/queues", queueDashboard.getRouter());
 app.use("/api/emails", emailRoutes);
+app.use("/api/auth", authRoutes);
 
 app.get("/health", async (_req, res) => {
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    await Promise.all([prisma.$queryRaw`SELECT 1`, redis.ping()]);
 
     res.json({
       success: true,
       message: "ReachInbox Email Scheduler API is running",
       database: "connected",
+      redis: "connected",
     });
   } catch (error) {
     console.error(error);
 
     res.status(500).json({
       success: false,
-      message: "Database connection failed",
+      message: "Service dependencies are unavailable",
     });
   }
 });
@@ -62,7 +77,7 @@ app.post("/test/schedule", async (_req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = env.port;
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
