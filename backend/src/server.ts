@@ -3,8 +3,6 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import "./config/env.js";
 import { env } from "./config/env.js";
-import { prisma } from "./config/database.js";
-import { redis } from "./config/redis.js";
 import { emailQueue } from "./queues/email.queue.js";
 import emailRoutes from "./routes/email.routes.js";
 import authRoutes from "./routes/auth.routes.js";
@@ -17,12 +15,17 @@ const app = express();
 
 app.use(
   cors({
-    origin: env.corsOrigin ? env.corsOrigin.split(",") : true,
+    origin: env.corsOrigin,
     credentials: true,
   })
 );
 app.use(express.json());
 app.use(cookieParser());
+
+app.get("/health", (_req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
 app.use(attachUser);
 
 const queueDashboard = new ExpressAdapter();
@@ -34,26 +37,6 @@ createBullBoard({
 app.use("/admin/queues", queueDashboard.getRouter());
 app.use("/api/emails", emailRoutes);
 app.use("/api/auth", authRoutes);
-
-app.get("/health", async (_req, res) => {
-  try {
-    await Promise.all([prisma.$queryRaw`SELECT 1`, redis.ping()]);
-
-    res.json({
-      success: true,
-      message: "ReachInbox Email Scheduler API is running",
-      database: "connected",
-      redis: "connected",
-    });
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      success: false,
-      message: "Service dependencies are unavailable",
-    });
-  }
-});
 
 app.post("/test/schedule", async (_req, res) => {
   try {
@@ -84,6 +67,6 @@ app.post("/test/schedule", async (_req, res) => {
 
 const PORT = env.port;
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server listening on 0.0.0.0:${PORT}`);
 });

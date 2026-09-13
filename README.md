@@ -294,16 +294,13 @@ Stores Slack connection information associated with a user.
 GET /health
 ```
 
-Checks PostgreSQL and Redis connectivity.
+Returns a dependency-free liveness response while the Node process is running.
 
 Example response:
 
 ```json
 {
-  "success": true,
-  "message": "ReachInbox Email Scheduler API is running",
-  "database": "connected",
-  "redis": "connected"
+   "status": "ok"
 }
 ```
 
@@ -518,6 +515,72 @@ The frontend is available at:
 ```text
 http://localhost:5173
 ```
+
+# Render Backend Deployment
+
+Deploy `backend/` as a Render Web Service with **Root Directory** set to `backend`.
+
+```text
+Build Command: npm install && npm run build && npm run db:migrate
+Start Command: npm start
+Worker Start Command: npm run start:worker
+Health Check Path: /health
+```
+
+The build runs `prisma generate` through `npm run build`, then applies committed
+Prisma migrations with `prisma migrate deploy`. `DATABASE_URL` must point to the
+production PostgreSQL database during the Render build. Run the API and worker
+as separate Render services/processes sharing the same Redis instance.
+
+Required Render environment variable names:
+
+```text
+NODE_ENV
+PORT
+CORS_ORIGIN
+DATABASE_URL
+REDIS_URL
+ELASTICSEARCH_URL
+JWT_SECRET
+FRONTEND_URL
+WORKER_CONCURRENCY
+MIN_DELAY_MS
+MAX_EMAILS_PER_HOUR
+ETHEREAL_HOST
+ETHEREAL_PORT
+ETHEREAL_SECURE
+ETHEREAL_USER
+ETHEREAL_PASSWORD
+EMAIL_FROM
+GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET
+GOOGLE_CALLBACK_URL
+SLACK_CLIENT_ID
+SLACK_CLIENT_SECRET
+SLACK_CALLBACK_URL
+SLACK_DEFAULT_CHANNEL_ID
+```
+
+Set `CORS_ORIGIN` to the deployed frontend origin, such as
+`https://your-frontend.vercel.app`, without a trailing slash. Multiple origins
+may be comma-separated. Local development continues to use
+`http://localhost:5173` and `REDIS_HOST=localhost` / `REDIS_PORT=6379`.
+
+Required external services are PostgreSQL, hosted Redis, hosted
+Elasticsearch/OpenSearch, and an SMTP provider. Google OAuth requires a Google
+Cloud OAuth client. Slack is required only for the Slack integration.
+Elasticsearch is not needed for `/health`, but is required for email search and
+indexing in production.
+
+In Google Cloud Console, add this production redirect URI, replacing the Render
+service hostname:
+
+```text
+https://<your-render-service-name>.onrender.com/api/auth/google/callback
+```
+
+Set the backend variable `GOOGLE_CALLBACK_URL` to that exact URI. The local
+value remains `http://localhost:4000/api/auth/google/callback`.
 
 The frontend uses the backend `/api` proxy during local development.
 

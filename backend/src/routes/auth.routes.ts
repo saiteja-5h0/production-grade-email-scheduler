@@ -40,8 +40,8 @@ router.get("/google", (_req, res) => {
   const state = createState("google");
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.search = new URLSearchParams({
-    client_id: process.env.GOOGLE_CLIENT_ID || "",
-    redirect_uri: process.env.GOOGLE_CALLBACK_URL || "",
+    client_id: env.googleClientId || "",
+    redirect_uri: env.googleCallbackUrl || "",
     response_type: "code",
     scope: "openid email profile",
     state,
@@ -61,9 +61,9 @@ router.get("/google/callback", async (req, res) => {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         code: req.query.code,
-        client_id: process.env.GOOGLE_CLIENT_ID || "",
-        client_secret: process.env.GOOGLE_CLIENT_SECRET || "",
-        redirect_uri: process.env.GOOGLE_CALLBACK_URL || "",
+        client_id: env.googleClientId || "",
+        client_secret: env.googleClientSecret || "",
+        redirect_uri: env.googleCallbackUrl || "",
         grant_type: "authorization_code",
       }),
     });
@@ -120,8 +120,8 @@ router.get("/slack", (req, res) => {
   const state = createState("slack", req.user.id);
   const url = new URL("https://slack.com/oauth/v2/authorize");
   url.search = new URLSearchParams({
-    client_id: process.env.SLACK_CLIENT_ID || "",
-    redirect_uri: process.env.SLACK_CALLBACK_URL || "",
+    client_id: env.slackClientId || "",
+    redirect_uri: env.slackCallbackUrl || "",
     scope: "chat:write",
     state,
   }).toString();
@@ -140,9 +140,9 @@ router.get("/slack/callback", async (req, res) => {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         code: req.query.code,
-        client_id: process.env.SLACK_CLIENT_ID || "",
-        client_secret: process.env.SLACK_CLIENT_SECRET || "",
-        redirect_uri: process.env.SLACK_CALLBACK_URL || "",
+        client_id: env.slackClientId || "",
+        client_secret: env.slackClientSecret || "",
+        redirect_uri: env.slackCallbackUrl || "",
       }),
     });
 

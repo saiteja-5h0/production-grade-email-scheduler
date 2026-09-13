@@ -12,6 +12,8 @@ export async function indexEmail(email: {
   sentAt: Date | null;
   senderEmail: string;
 }) {
+  if (!elasticsearch) return;
+
   await elasticsearch.index({
     index: INDEX,
     id: email.id,
@@ -21,6 +23,10 @@ export async function indexEmail(email: {
 }
 
 export async function searchEmails(query: string) {
+  if (!elasticsearch) {
+    throw new Error("Elasticsearch is not configured");
+  }
+
   const result = await elasticsearch.search({
     index: INDEX,
     query: query
