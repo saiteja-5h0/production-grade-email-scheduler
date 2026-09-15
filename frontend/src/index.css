@@ -11,7 +11,7 @@ button, input, textarea { font: inherit; }
 button { cursor: pointer; }
 .mail-app { min-height: 100vh; background: #f5f6f3; }
 .app-header { height: 78px; display: flex; align-items: center; gap: 52px; padding: 0 32px; background: #fff; border-bottom: 1px solid #e5e8e3; }
-.brand { font: 900 25px/1 Arial, sans-serif; letter-spacing: -3px; color: #111; }.brand span { color: #08ad4e; }
+.brand { font: 700 18px/1 Arial, sans-serif; letter-spacing: -0.5px; color: #111; white-space: nowrap; }
 .main-nav { display: flex; align-self: stretch; gap: 28px; }.main-nav button { border: 0; background: none; color: #87918b; font: 13px Arial, sans-serif; position: relative; }.main-nav button.active { color: #111; }.main-nav button.active:after { content: ""; position: absolute; bottom: 0; left: 0; right: 0; height: 2px; background: #08ad4e; }
 .user-area { margin-left: auto; display: flex; align-items: center; gap: 16px; }.user-copy { font: 12px/1.35 Arial, sans-serif; }.user-copy p { margin: 0; }.user-copy p:last-child { color: #9aa39d; font-size: 10px; }.user-area button { font-size: 12px; color: #68736c; }
 .workspace, .queue-view { max-width: 1060px; margin: 0 auto; padding: 52px 28px; }.page-heading { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 30px; }.eyebrow { display: block; margin-bottom: 10px; color: #08a94b; font: 10px Arial, sans-serif; letter-spacing: 1.5px; text-transform: uppercase; }.page-heading h2 { margin: 0; font-size: 38px; font-weight: 400; letter-spacing: -1px; }.page-heading p { margin: 9px 0 0; color: #8b948e; font: 13px Arial, sans-serif; }

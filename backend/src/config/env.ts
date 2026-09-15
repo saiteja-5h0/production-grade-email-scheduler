@@ -27,6 +27,8 @@ export const env = {
   smtpSecure: process.env.ETHEREAL_SECURE === "true",
   emailProvider: (process.env.EMAIL_PROVIDER || (process.env.NODE_ENV === "production" ? "brevo" : "ethereal")) as "brevo" | "ethereal",
   brevoApiKey: process.env.BREVO_API_KEY,
+  brevoSenderEmail: process.env.BREVO_SENDER_EMAIL,
+  brevoSenderName: process.env.BREVO_SENDER_NAME || "Email Scheduler",
   emailFrom: process.env.EMAIL_FROM,
   googleClientId: process.env.GOOGLE_CLIENT_ID,
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,
@@ -46,6 +48,7 @@ if (env.isProduction) {
     ["CORS_ORIGIN", process.env.CORS_ORIGIN],
     ["JWT_SECRET", process.env.JWT_SECRET],
     ...(env.emailProvider === "brevo" ? [["BREVO_API_KEY", env.brevoApiKey] as const] : []),
+    ...(env.emailProvider === "brevo" ? [["BREVO_SENDER_EMAIL", env.brevoSenderEmail] as const] : []),
     ["EMAIL_FROM", env.emailFrom],
   ] as const;
   const missing = required.filter(([, value]) => !value).map(([name]) => name);

@@ -9,10 +9,10 @@ const transporter = nodemailer.createTransport({
 });
 
 function brevoSender() {
-  const configuredFrom = env.emailFrom?.trim() || "";
+  const configuredFrom = env.brevoSenderEmail?.trim() || env.emailFrom?.trim() || "";
   const match = configuredFrom.match(/^(.*?)\s*<([^>]+)>$/);
   const email = match?.[2]?.trim() || configuredFrom;
-  const name = match?.[1]?.trim() || "ReachInbox";
+  const name = match?.[1]?.trim() || env.brevoSenderName;
 
   if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
     throw new Error("EMAIL_FROM must contain a valid Brevo-verified sender email");

@@ -11,7 +11,7 @@ type Props = {
 export function Header({ user, activeView, onNavigate, onLogout }: Props) {
   return (
     <header className="app-header">
-      <div className="brand">ONB<span>.</span></div>
+      <div className="brand">Email Scheduler</div>
       <nav className="main-nav"><button className={activeView === "scheduled" ? "active" : ""} onClick={() => onNavigate("scheduled")}>Scheduled</button><button className={activeView === "sent" ? "active" : ""} onClick={() => onNavigate("sent")}>Sent</button><button className={activeView === "queue" ? "active" : ""} onClick={() => onNavigate("queue")}>Queue dashboard</button></nav>
       <div className="user-area">
         <div className="flex items-center gap-3">

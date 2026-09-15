@@ -438,6 +438,8 @@ ETHEREAL_USER=
 ETHEREAL_PASSWORD=
 EMAIL_FROM="ReachInbox Demo <no-reply@reachinbox.local>"
 EMAIL_PROVIDER=brevo
+BREVO_SENDER_EMAIL=verified-sender@example.com
+BREVO_SENDER_NAME="Email Scheduler"
 BREVO_API_KEY=
 # For Brevo, EMAIL_FROM must use an active verified Brevo sender.
 ```
