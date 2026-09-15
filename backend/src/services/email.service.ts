@@ -8,17 +8,45 @@ const transporter = nodemailer.createTransport({
   auth: { user: env.smtpUser, pass: env.smtpPassword },
 });
 
-function brevoSender() {
-  const configuredFrom = env.brevoSenderEmail?.trim() || env.emailFrom?.trim() || "";
+function parseSender(configuredFrom: string, fallbackName: string) {
   const match = configuredFrom.match(/^(.*?)\s*<([^>]+)>$/);
   const email = match?.[2]?.trim() || configuredFrom;
-  const name = match?.[1]?.trim() || env.brevoSenderName;
+  const name = match?.[1]?.trim() || fallbackName;
 
   if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
-    throw new Error("EMAIL_FROM must contain a valid Brevo-verified sender email");
+    return null;
   }
 
   return { email, name };
+}
+
+async function brevoSender() {
+  const explicitSender = env.brevoSenderEmail?.trim();
+  if (explicitSender) {
+    const sender = parseSender(explicitSender, env.brevoSenderName);
+    if (sender) return sender;
+  }
+
+  const legacySender = env.emailFrom?.trim();
+  if (legacySender && !legacySender.includes(".local")) {
+    const sender = parseSender(legacySender, env.brevoSenderName);
+    if (sender) return sender;
+  }
+
+  const response = await fetch("https://api.brevo.com/v3/senders?limit=50&offset=0", {
+    headers: { accept: "application/json", "api-key": env.brevoApiKey || "" },
+  });
+  const result = (await response.json().catch(() => null)) as {
+    senders?: Array<{ email?: string; active?: boolean }>;
+    message?: string;
+  } | null;
+  const activeSender = result?.senders?.find((sender) => sender.active && sender.email);
+
+  if (activeSender?.email) {
+    return { email: activeSender.email, name: env.brevoSenderName };
+  }
+
+  throw new Error(result?.message || "No active Brevo sender is configured");
 }
 
 export async function sendEmail({
@@ -33,11 +61,11 @@ export async function sendEmail({
   body: string;
 }) {
   if (env.emailProvider === "brevo") {
-    if (!env.brevoApiKey || (!env.brevoSenderEmail && !env.emailFrom)) {
-      throw new Error("Brevo email configuration is missing: set BREVO_API_KEY and BREVO_SENDER_EMAIL");
+    if (!env.brevoApiKey) {
+      throw new Error("Brevo email configuration is missing: set BREVO_API_KEY");
     }
 
-    const sender = brevoSender();
+    const sender = await brevoSender();
 
     const response = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
