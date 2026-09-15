@@ -86,6 +86,8 @@ function App() {
         <EmailTable emails={activeEmails} mode={activeView} loading={loadingEmails} error={loadError} /></section>
       </main>) }
 
+      <footer className="app-footer">Made with <span aria-label="love">&hearts;</span> by Mulinti Saiteja</footer>
+
       <ComposeModal
         open={showCompose}
         onClose={() => setShowCompose(false)}
