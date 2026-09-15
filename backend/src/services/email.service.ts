@@ -33,8 +33,8 @@ export async function sendEmail({
   body: string;
 }) {
   if (env.emailProvider === "brevo") {
-    if (!env.brevoApiKey || !env.emailFrom) {
-      throw new Error("Brevo email configuration is missing: set BREVO_API_KEY and EMAIL_FROM");
+    if (!env.brevoApiKey || (!env.brevoSenderEmail && !env.emailFrom)) {
+      throw new Error("Brevo email configuration is missing: set BREVO_API_KEY and BREVO_SENDER_EMAIL");
     }
 
     const sender = brevoSender();
