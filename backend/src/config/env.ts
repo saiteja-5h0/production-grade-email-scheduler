@@ -48,8 +48,6 @@ if (env.isProduction) {
     ["CORS_ORIGIN", process.env.CORS_ORIGIN],
     ["JWT_SECRET", process.env.JWT_SECRET],
     ...(env.emailProvider === "brevo" ? [["BREVO_API_KEY", env.brevoApiKey] as const] : []),
-    ...(env.emailProvider === "brevo" ? [["BREVO_SENDER_EMAIL", env.brevoSenderEmail] as const] : []),
-    ["EMAIL_FROM", env.emailFrom],
   ] as const;
   const missing = required.filter(([, value]) => !value).map(([name]) => name);
 
