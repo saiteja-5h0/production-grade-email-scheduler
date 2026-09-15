@@ -6,9 +6,7 @@ import { SESSION_COOKIE, signSession } from "../middleware/auth.js";
 
 const router = Router();
 
-// state -> { provider, expires, userId? } (userId is set for the Slack flow so the
-// callback knows which logged-in user to attach the Slack connection to)
-const states = new Map<string, { provider: "google" | "slack"; expires: number; userId?: string }>();
+const states = new Map<string, { provider: "google"; expires: number }>();
 const frontendUrl = env.frontendUrl;
 
 // In production the frontend (Vercel) and backend (Render) live on different
@@ -22,13 +20,13 @@ const cookieOptions = {
   maxAge: 30 * 24 * 60 * 60 * 1000,
 };
 
-function createState(provider: "google" | "slack", userId?: string) {
+function createState(provider: "google") {
   const state = randomBytes(24).toString("hex");
-  states.set(state, { provider, expires: Date.now() + 10 * 60_000, userId });
+  states.set(state, { provider, expires: Date.now() + 10 * 60_000 });
   return state;
 }
 
-function validState(state: unknown, provider: "google" | "slack") {
+function validState(state: unknown, provider: "google") {
   if (typeof state !== "string") return null;
   const record = states.get(state);
   states.delete(state);
@@ -110,66 +108,6 @@ router.get("/me", (req, res) => {
 router.post("/logout", (_req, res) => {
   res.clearCookie(SESSION_COOKIE, { ...cookieOptions, maxAge: undefined });
   res.json({ success: true });
-});
-
-router.get("/slack", (req, res) => {
-  if (!req.isAuthenticated || !req.user) {
-    return res.redirect(`${frontendUrl}/?slack=failed&reason=not-logged-in`);
-  }
-
-  const state = createState("slack", req.user.id);
-  const url = new URL("https://slack.com/oauth/v2/authorize");
-  url.search = new URLSearchParams({
-    client_id: env.slackClientId || "",
-    redirect_uri: env.slackCallbackUrl || "",
-    scope: "chat:write",
-    state,
-  }).toString();
-  res.redirect(url.toString());
-});
-
-router.get("/slack/callback", async (req, res) => {
-  try {
-    const state = validState(req.query.state, "slack");
-    if (!state?.userId || typeof req.query.code !== "string") {
-      throw new Error("Invalid OAuth response");
-    }
-
-    const response = await fetch("https://slack.com/api/oauth.v2.access", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        code: req.query.code,
-        client_id: env.slackClientId || "",
-        client_secret: env.slackClientSecret || "",
-        redirect_uri: env.slackCallbackUrl || "",
-      }),
-    });
-
-    const data = (await response.json()) as {
-      ok?: boolean;
-      access_token?: string;
-      team?: { id?: string; name?: string };
-    };
-    if (!data.ok || !data.access_token) throw new Error("Slack token exchange failed");
-
-    await prisma.slackConnection.upsert({
-      where: { userId: state.userId },
-      update: { accessToken: data.access_token, teamId: data.team?.id },
-      create: { userId: state.userId, accessToken: data.access_token, teamId: data.team?.id },
-    });
-
-    res.redirect(`${frontendUrl}/?slack=connected`);
-  } catch (error) {
-    console.error("Slack OAuth error:", error);
-    res.redirect(`${frontendUrl}/?slack=failed`);
-  }
-});
-
-router.get("/slack/status", async (req, res) => {
-  if (!req.user) return res.json({ success: true, connected: false });
-  const connection = await prisma.slackConnection.findUnique({ where: { userId: req.user.id } });
-  res.json({ success: true, connected: Boolean(connection) });
 });
 
 export default router;

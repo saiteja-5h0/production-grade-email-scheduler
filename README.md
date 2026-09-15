@@ -96,7 +96,6 @@ Available at:
 The backend contains OAuth routes/configuration for:
 
 * Google authentication
-* Slack integration
 
 OAuth credentials and callback URLs are configured through environment variables and must never be committed to the repository.
 
@@ -184,7 +183,6 @@ OAuth credentials and callback URLs are configured through environment variables
 ## Authentication / Integrations
 
 * Google OAuth configuration
-* Slack OAuth configuration
 
 ---
 
@@ -216,7 +214,6 @@ production-grade-email-scheduler/
 │   │   │   ├── email.service.ts
 │   │   │   ├── rate-limit.service.ts
 │   │   │   ├── send-delay.service.ts
-│   │   │   └── slack.service.ts
 │   │   │
 │   │   ├── workers/
 │   │   │   └── email.worker.ts
@@ -279,10 +276,6 @@ Important fields include:
 * Error
 * Message ID
 * Preview URL
-
-### SlackConnection
-
-Stores Slack connection information associated with a user.
 
 ---
 
@@ -419,7 +412,7 @@ from:
 backend/.env.example
 ```
 
-Then configure your local PostgreSQL, Redis, Elasticsearch, Ethereal SMTP, Google OAuth, and Slack values.
+Then configure your local PostgreSQL, Redis, Elasticsearch, Ethereal SMTP, and Google OAuth values.
 
 Example:
 
@@ -444,6 +437,9 @@ ETHEREAL_PORT=587
 ETHEREAL_USER=
 ETHEREAL_PASSWORD=
 EMAIL_FROM="ReachInbox Demo <no-reply@reachinbox.local>"
+EMAIL_PROVIDER=brevo
+BREVO_API_KEY=
+# For Brevo, EMAIL_FROM must use an active verified Brevo sender.
 ```
 
 ---
@@ -555,10 +551,6 @@ EMAIL_FROM
 GOOGLE_CLIENT_ID
 GOOGLE_CLIENT_SECRET
 GOOGLE_CALLBACK_URL
-SLACK_CLIENT_ID
-SLACK_CLIENT_SECRET
-SLACK_CALLBACK_URL
-SLACK_DEFAULT_CHANNEL_ID
 ```
 
 Set `CORS_ORIGIN` to the deployed frontend origin, such as
@@ -568,7 +560,7 @@ may be comma-separated. Local development continues to use
 
 Required external services are PostgreSQL, hosted Redis, hosted
 Elasticsearch/OpenSearch, and an SMTP provider. Google OAuth requires a Google
-Cloud OAuth client. Slack is required only for the Slack integration.
+Cloud OAuth client.
 Elasticsearch is not needed for `/health`, but is required for email search and
 indexing in production.
 
@@ -784,7 +776,6 @@ Before deployment or submission, verify:
 * [ ] Elasticsearch search works
 * [ ] Bull Board displays queue activity
 * [ ] OAuth configuration is tested before enabling production authentication
-* [ ] Slack notification flow is tested if configured
 
 ---
 
@@ -870,7 +861,7 @@ The project is under active development.
 * Minimum sender delay
 * Elasticsearch email search
 * BullMQ monitoring dashboard
-* OAuth/Slack integration structure
+* Google OAuth integration structure
 
 ### Remaining / Deployment Configuration
 

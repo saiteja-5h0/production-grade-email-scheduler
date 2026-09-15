@@ -5,11 +5,21 @@ const transporter = nodemailer.createTransport({
   host: env.smtpHost,
   port: env.smtpPort,
   secure: env.smtpSecure,
-  auth: {
-    user: env.smtpUser,
-    pass: env.smtpPassword,
-  },
+  auth: { user: env.smtpUser, pass: env.smtpPassword },
 });
+
+function brevoSender() {
+  const configuredFrom = env.emailFrom?.trim() || "";
+  const match = configuredFrom.match(/^(.*?)\s*<([^>]+)>$/);
+  const email = match?.[2]?.trim() || configuredFrom;
+  const name = match?.[1]?.trim() || "ReachInbox";
+
+  if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+    throw new Error("EMAIL_FROM must contain a valid Brevo-verified sender email");
+  }
+
+  return { email, name };
+}
 
 export async function sendEmail({
   from,
@@ -22,10 +32,12 @@ export async function sendEmail({
   subject: string;
   body: string;
 }) {
-  if (env.isProduction) {
+  if (env.emailProvider === "brevo") {
     if (!env.brevoApiKey || !env.emailFrom) {
-      throw new Error("Brevo email configuration is missing");
+      throw new Error("Brevo email configuration is missing: set BREVO_API_KEY and EMAIL_FROM");
     }
+
+    const sender = brevoSender();
 
     const response = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
@@ -35,7 +47,7 @@ export async function sendEmail({
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        sender: { email: env.emailFrom },
+        sender,
         to: [{ email: to }],
         subject,
         textContent: body,
@@ -45,10 +57,11 @@ export async function sendEmail({
     const result = (await response.json().catch(() => null)) as {
       messageId?: string;
       message?: string;
+      code?: string;
     } | null;
 
     if (!response.ok || !result?.messageId) {
-      throw new Error(result?.message || `Brevo request failed (${response.status})`);
+      throw new Error(result?.message ? `Brevo: ${result.message}` : `Brevo request failed (${response.status}${result?.code ? `, ${result.code}` : ""})`);
     }
 
     return {

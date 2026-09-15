@@ -8,7 +8,6 @@ import { checkHourlyLimit } from "../services/rate-limit.service.js";
 import { checkSendDelay } from "../services/send-delay.service.js";
 import { sendEmail } from "../services/email.service.js";
 import { indexEmail } from "../services/email-search.service.js";
-import { notifyRateLimit } from "../services/slack.service.js";
 
 const concurrency = env.workerConcurrency;
 
@@ -43,9 +42,6 @@ const worker = new Worker(
     );
 
     if (!rateLimit.allowed && rateLimit.retryAt) {
-      await notifyRateLimit(email.campaign.userId, email.campaign.senderEmail, rateLimit.retryAt).catch((error) =>
-        console.error("Slack notification failed:", error)
-      );
       console.log(
         `Hourly rate limit reached for ${email.campaign.senderEmail}`
       );

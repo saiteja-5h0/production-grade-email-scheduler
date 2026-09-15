@@ -47,19 +47,18 @@ export function EmailTable({ emails, mode, loading, error }: Props) {
   }
 
   return (
-    <div className="divide-y divide-slate-100">
+    <div className="email-list">
+      <div className="email-list-header"><span>Recipient</span><span>Subject</span><span>{mode === "scheduled" ? "Scheduled for" : "Sent at"}</span><span>Status</span></div>
       {emails.map((email) => (
-        <div key={email.id} className="grid gap-2 p-5 md:grid-cols-4 md:items-center">
+        <div key={email.id} className="email-row">
           <div>
-            <p className="font-medium text-slate-900">{email.subject}</p>
-            <p className="text-sm text-slate-500">{email.recipient}</p>
+            <p className="recipient">{email.recipient}</p>
+            <p className="sender">From {email.campaign.senderEmail}</p>
           </div>
-          <p className="text-sm text-slate-600">From: {email.campaign.senderEmail}</p>
-          <p className="text-sm text-slate-600">
-            {mode === "scheduled" ? `Scheduled: ${formatDate(email.scheduledAt)}` : `Sent: ${formatDate(email.sentAt)}`}
-          </p>
+          <p className="subject">{email.subject}</p>
+          <p className="date">{mode === "scheduled" ? formatDate(email.scheduledAt) : formatDate(email.sentAt)}</p>
           <span
-            className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[email.status]}`}
+            className={`status ${statusStyles[email.status]}`}
             title={email.error || undefined}
           >
             {email.status}

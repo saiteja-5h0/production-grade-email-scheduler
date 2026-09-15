@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getMe, getScheduledEmails, getSentEmails, getSlackStatus, logout, type CurrentUser } from "./api";
+import { getMe, getScheduledEmails, getSentEmails, logout, type CurrentUser } from "./api";
 import type { Email } from "./types";
 import { Header } from "./components/Header";
 import { LoginScreen } from "./components/LoginScreen";
@@ -11,10 +11,8 @@ import { Toast } from "./components/Toast";
 function App() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [user, setUser] = useState<CurrentUser>(null);
-  const [slackConnected, setSlackConnected] = useState(false);
-
   const [showCompose, setShowCompose] = useState(false);
-  const [activeTab, setActiveTab] = useState<"scheduled" | "sent">("scheduled");
+  const [activeView, setActiveView] = useState<"scheduled" | "sent" | "queue">("scheduled");
   const [scheduledEmails, setScheduledEmails] = useState<Email[]>([]);
   const [sentEmails, setSentEmails] = useState<Email[]>([]);
   const [loadingEmails, setLoadingEmails] = useState(true);
@@ -24,9 +22,6 @@ function App() {
   async function refreshSession() {
     const currentUser = await getMe().catch(() => null);
     setUser(currentUser);
-    if (currentUser) {
-      setSlackConnected(await getSlackStatus().catch(() => false));
-    }
   }
 
   async function loadEmails() {
@@ -44,17 +39,14 @@ function App() {
   }
 
   useEffect(() => {
-    // Handle redirect back from Google/Slack OAuth (?login=success, ?slack=connected, ...)
+    // Handle redirect back from Google OAuth.
     const params = new URLSearchParams(window.location.search);
     const login = params.get("login");
-    const slack = params.get("slack");
 
     if (login === "success") setToast({ message: "Signed in successfully.", tone: "success" });
     else if (login === "failed") setToast({ message: "Google sign-in failed. Please try again.", tone: "error" });
-    else if (slack === "connected") setToast({ message: "Slack connected.", tone: "success" });
-    else if (slack === "failed") setToast({ message: "Slack connection failed.", tone: "error" });
 
-    if (login || slack) window.history.replaceState({}, "", window.location.pathname);
+    if (login) window.history.replaceState({}, "", window.location.pathname);
 
     refreshSession().finally(() => setCheckingAuth(false));
   }, []);
@@ -76,68 +68,23 @@ function App() {
     return <LoginScreen />;
   }
 
-  const activeEmails = activeTab === "scheduled" ? scheduledEmails : sentEmails;
+  const activeEmails = activeView === "scheduled" ? scheduledEmails : sentEmails;
 
   return (
-    <div className="min-h-screen bg-slate-100">
-      <Header user={user} slackConnected={slackConnected} onLogout={handleLogout} />
-
-      <main className="mx-auto max-w-6xl p-8">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h2 className="text-3xl font-bold text-slate-900">Dashboard</h2>
-            <p className="mt-1 text-slate-500">Manage your scheduled email campaigns.</p>
-          </div>
-          <Button onClick={() => setShowCompose(true)}>+ Compose Email</Button>
-        </div>
-
-        <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-3">
-          <div className="rounded-xl bg-white p-6 shadow-sm">
-            <p className="text-sm text-slate-500">Scheduled</p>
-            <p className="mt-2 text-3xl font-bold text-slate-900">{scheduledEmails.length}</p>
-          </div>
-          <div className="rounded-xl bg-white p-6 shadow-sm">
-            <p className="text-sm text-slate-500">Sent</p>
-            <p className="mt-2 text-3xl font-bold text-slate-900">
-              {sentEmails.filter((e) => e.status === "SENT").length}
-            </p>
-          </div>
-          <div className="rounded-xl bg-white p-6 shadow-sm">
-            <p className="text-sm text-slate-500">Failed</p>
-            <p className="mt-2 text-3xl font-bold text-slate-900">
-              {sentEmails.filter((e) => e.status === "FAILED").length}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-8 rounded-xl bg-white shadow-sm">
-          <div className="flex items-center justify-between gap-4 border-b border-slate-200 p-6">
-            <div className="flex gap-2">
-              <button
-                onClick={() => setActiveTab("scheduled")}
-                className={`rounded-lg px-4 py-2 text-sm font-medium ${
-                  activeTab === "scheduled" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                Scheduled Emails
-              </button>
-              <button
-                onClick={() => setActiveTab("sent")}
-                className={`rounded-lg px-4 py-2 text-sm font-medium ${
-                  activeTab === "sent" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                Sent Emails
-              </button>
-            </div>
-            <Button variant="ghost" onClick={() => void loadEmails()}>
-              Refresh
-            </Button>
-          </div>
-
-          <EmailTable emails={activeEmails} mode={activeTab} loading={loadingEmails} error={loadError} />
-        </div>
-      </main>
+    <div className="mail-app">
+      <Header user={user} activeView={activeView} onNavigate={setActiveView} onLogout={handleLogout} />
+      {activeView === "queue" ? (
+        <main className="queue-view"><div className="page-heading"><div><span className="eyebrow">Operations</span><h2>Queue monitor</h2><p>Live BullMQ activity for scheduled email delivery.</p></div></div><iframe title="BullMQ dashboard" src={`${import.meta.env.VITE_API_URL ?? "http://localhost:4000"}/admin/queues`} /></main>
+      ) : (
+      <main className="workspace">
+        <div className="page-heading"><div><span className="eyebrow">Outbox</span><h2>{activeView === "scheduled" ? "Scheduled" : "Sent"}</h2><p>{activeView === "scheduled" ? "Keep an eye on what is about to leave your inbox." : "A clear record of every delivered campaign."}</p></div><Button onClick={() => setShowCompose(true)}>Compose email</Button></div>
+        <div className="summary-strip"><span><strong>{scheduledEmails.length}</strong> scheduled</span><span><strong>{sentEmails.filter((e) => e.status === "SENT").length}</strong> sent</span><span><strong>{sentEmails.filter((e) => e.status === "FAILED").length}</strong> failed</span></div>
+        <section className="mail-panel"><div className="panel-toolbar"><div className="mail-tabs">
+          <button onClick={() => setActiveView("scheduled")} className={activeView === "scheduled" ? "active" : ""}>Scheduled <span>{scheduledEmails.length}</span></button>
+          <button onClick={() => setActiveView("sent")} className={activeView === "sent" ? "active" : ""}>Sent <span>{sentEmails.length}</span></button>
+        </div><button className="refresh-button" onClick={() => void loadEmails()}>Refresh</button></div>
+        <EmailTable emails={activeEmails} mode={activeView} loading={loadingEmails} error={loadError} /></section>
+      </main>) }
 
       <ComposeModal
         open={showCompose}

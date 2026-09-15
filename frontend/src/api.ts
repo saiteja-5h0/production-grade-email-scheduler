@@ -41,18 +41,8 @@ export async function logout() {
   return readResponse(response);
 }
 
-export async function getSlackStatus(): Promise<boolean> {
-  const response = await apiFetch("/api/auth/slack/status");
-  const payload = await readResponse(response);
-  return Boolean(payload.connected);
-}
-
 export function googleLoginUrl() {
   return `${API_URL}/api/auth/google`;
-}
-
-export function slackConnectUrl() {
-  return `${API_URL}/api/auth/slack`;
 }
 
 // ---- Emails ----
