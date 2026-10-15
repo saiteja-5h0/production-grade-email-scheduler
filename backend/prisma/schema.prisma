@@ -5,6 +5,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -18,6 +19,7 @@ model User {
 
   campaigns       Campaign[]
   slackConnection SlackConnection?
+  oauthStates     OAuthState[]
 }
 
 model Campaign {
@@ -33,6 +35,8 @@ model Campaign {
 
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   emails Email[]
+
+  @@index([userId])
 }
 
 model Email {
@@ -49,12 +53,21 @@ model Email {
   previewUrl  String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+  consentStatus RecipientConsent @default(UNKNOWN)
+  consentedAt DateTime?
+  consentSource String?
+  processingToken String?
+  processingLeaseUntil DateTime?
 
   campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  dispatch EmailDispatch?
+  providerEvents EmailProviderEvent[]
 
   @@index([status])
   @@index([scheduledAt])
   @@index([recipient])
+  @@index([status, processingLeaseUntil])
+  @@index([campaignId, scheduledAt])
 }
 
 model SlackConnection {
@@ -66,6 +79,92 @@ model SlackConnection {
   updatedAt   DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model OAuthState {
+  stateHash String        @id
+  provider  OAuthProvider
+  userId    String?
+  expiresAt DateTime
+  createdAt DateTime      @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+model EmailDispatch {
+  emailId     String              @id
+  state       EmailDispatchState  @default(PENDING)
+  runId       String?
+  claimToken  String?
+  claimedAt   DateTime?
+  attempts    Int                 @default(0)
+  lastError   String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  email Email @relation(fields: [emailId], references: [id], onDelete: Cascade)
+
+  @@index([state, claimedAt])
+}
+
+model SenderThrottle {
+  senderEmail    String   @id
+  hourWindowStart DateTime
+  hourlyCount    Int      @default(0)
+  nextAllowedAt  DateTime?
+  updatedAt      DateTime @updatedAt
+}
+
+model ProviderRateThrottle {
+  id           String   @id
+  windowStart  DateTime
+  requestCount Int      @default(0)
+  updatedAt    DateTime @updatedAt
+}
+
+model RateLimitNotification {
+  senderEmail     String
+  hourWindowStart DateTime
+  createdAt       DateTime @default(now())
+
+  @@id([senderEmail, hourWindowStart])
+}
+
+model SuppressedRecipient {
+  email     String   @id
+  reason    String
+  source    String
+  createdAt DateTime @default(now())
+}
+
+model EmailProviderEvent {
+  eventId         String   @id
+  emailId         String?
+  providerEmailId String
+  eventType       String
+  createdAt       DateTime @default(now())
+
+  email Email? @relation(fields: [emailId], references: [id], onDelete: SetNull)
+
+  @@index([providerEmailId])
+}
+
+enum OAuthProvider {
+  GOOGLE
+  SLACK
+}
+
+enum EmailDispatchState {
+  PENDING
+  CLAIMED
+  DISPATCHED
+}
+
+enum RecipientConsent {
+  UNKNOWN
+  CONFIRMED
 }
 
 enum EmailStatus {

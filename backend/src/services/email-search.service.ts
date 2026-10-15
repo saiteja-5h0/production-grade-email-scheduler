@@ -1,33 +1,23 @@
-import { elasticsearch } from "../config/elasticsearch.js";
+import { prisma } from "../config/database.js";
+import { buildEmailSearchWhere } from "./email-search-query.js";
 
-const INDEX = "scheduled-emails";
+export async function searchEmails(query: string, userId: string) {
+  const emails = await prisma.email.findMany({
+    where: buildEmailSearchWhere(query, userId),
+    orderBy: { scheduledAt: "desc" },
+    take: 10,
+    include: { campaign: { select: { senderEmail: true, userId: true } } },
+  });
 
-export async function indexEmail(email: {
-  id: string;
-  recipient: string;
-  subject: string;
-  body: string;
-  status: string;
-  scheduledAt: Date;
-  sentAt: Date | null;
-  senderEmail: string;
-}) {
-  await elasticsearch.index({
-    index: INDEX,
+  return emails.map((email) => ({
     id: email.id,
-    document: email,
-    refresh: "wait_for",
-  });
-}
-
-export async function searchEmails(query: string) {
-  const result = await elasticsearch.search({
-    index: INDEX,
-    query: query
-      ? { multi_match: { query, fields: ["recipient", "senderEmail", "subject", "body", "status"] } }
-      : { match_all: {} },
-    sort: [{ scheduledAt: { order: "desc" } }],
-  });
-
-  return result.hits.hits.map((hit) => hit._source);
+    recipient: email.recipient,
+    subject: email.subject,
+    body: email.body,
+    status: email.status,
+    scheduledAt: email.scheduledAt,
+    sentAt: email.sentAt,
+    senderEmail: email.campaign.senderEmail,
+    userId: email.campaign.userId,
+  }));
 }

@@ -18,6 +18,7 @@ export function ComposeModal({ open, onClose, onScheduled }: Props) {
   const [startTime, setStartTime] = useState("");
   const [delayMs, setDelayMs] = useState(2000);
   const [hourlyLimit, setHourlyLimit] = useState(200);
+  const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -29,6 +30,7 @@ export function ComposeModal({ open, onClose, onScheduled }: Props) {
     setStartTime("");
     setDelayMs(2000);
     setHourlyLimit(200);
+    setConsentConfirmed(false);
     setError("");
   }
 
@@ -48,8 +50,8 @@ export function ComposeModal({ open, onClose, onScheduled }: Props) {
   async function handleSchedule() {
     setError("");
 
-    if (!senderEmail || !subject || !body || recipients.length === 0 || !startTime) {
-      setError("Please fill all fields and upload a valid CSV.");
+    if (!senderEmail || !subject || !body || recipients.length === 0 || !startTime || !consentConfirmed) {
+      setError("Complete all fields, confirm recipient permission, and upload a valid CSV.");
       return;
     }
 
@@ -57,6 +59,7 @@ export function ComposeModal({ open, onClose, onScheduled }: Props) {
       setLoading(true);
       const result = await scheduleCampaign({
         senderEmail,
+        consentConfirmed,
         subject,
         body,
         recipients,
@@ -111,7 +114,7 @@ export function ComposeModal({ open, onClose, onScheduled }: Props) {
         <div>
           <label className="mb-2 block text-sm font-medium text-slate-700">Recipients CSV</label>
           <div className="rounded-lg border-2 border-dashed border-slate-300 p-6 text-center">
-            <p className="text-sm text-slate-500">Upload a CSV/text file of recipient email addresses</p>
+            <p className="text-sm text-slate-500">Upload up to 100 recipient email addresses</p>
             <input
               type="file"
               accept=".csv,.txt"
@@ -147,6 +150,16 @@ export function ComposeModal({ open, onClose, onScheduled }: Props) {
             onChange={(e) => setHourlyLimit(Number(e.target.value))}
           />
         </div>
+
+        <label className="flex items-start gap-3 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={consentConfirmed}
+            onChange={(event) => setConsentConfirmed(event.target.checked)}
+            className="mt-1"
+          />
+          <span>I confirm these recipients have consented to receive this email and that I will honor unsubscribe requests.</span>
+        </label>
 
         {error && <div className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{error}</div>}
 

@@ -2,13 +2,12 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
-  "main": "dist/server.js",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "worker": "tsx watch src/workers/email.worker.ts",
-    "build": "prisma generate && tsc",
-    "start": "node dist/server.js",
-    "start:worker": "node dist/workers/email.worker.js",
+    "dev": "nitro dev",
+    "test": "tsx --test test/*.test.ts",
+    "build": "prisma generate && nitro build",
+    "typecheck": "tsc --noEmit",
+    "start": "nitro preview",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy"
   },
@@ -17,19 +16,18 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "@bull-board/api": "^9.10.1",
-    "@bull-board/express": "^9.10.1",
-    "@elastic/elasticsearch": "^9.5.1",
     "@prisma/client": "^6.16.2",
-    "bullmq": "^6.3.4",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.2",
+    "nitro": "^3.0.260903-beta",
     "nodemailer": "^10.0.7",
-    "prisma": "^6.16.2"
+    "prisma": "^6.16.2",
+    "resend": "^6.33.0",
+    "rollup": "^4.64.7",
+    "workflow": "^5.2.2"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.9",

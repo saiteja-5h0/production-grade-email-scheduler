@@ -65,6 +65,7 @@ export async function scheduleCampaign(data: {
   delayMs: number;
   hourlyLimit: number;
   senderEmail: string;
+  consentConfirmed: boolean;
 }) {
   const response = await apiFetch("/api/emails/schedule", {
     method: "POST",
