@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getEmailJobs, getMe, getScheduledEmails, getSentEmails, getSlackStatus, logout, retryEmailJob, type CurrentUser, type EmailJob } from "./api";
+import { getEmailJobs, getFailedEmails, getMe, getScheduledEmails, getSentEmails, getSlackStatus, logout, retryEmailJob, type CurrentUser, type EmailJob } from "./api";
 import type { Email } from "./types";
 import { Header } from "./components/Header";
 import { LoginScreen } from "./components/LoginScreen";
@@ -20,9 +20,10 @@ function App() {
   const [retryingEmailId, setRetryingEmailId] = useState<string | null>(null);
 
   const [showCompose, setShowCompose] = useState(false);
-  const [activeTab, setActiveTab] = useState<"scheduled" | "sent">("scheduled");
+  const [activeTab, setActiveTab] = useState<"scheduled" | "sent" | "failed">("scheduled");
   const [scheduledEmails, setScheduledEmails] = useState<Email[]>([]);
   const [sentEmails, setSentEmails] = useState<Email[]>([]);
+  const [failedEmails, setFailedEmails] = useState<Email[]>([]);
   const [loadingEmails, setLoadingEmails] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [toast, setToast] = useState<{ message: string; tone: "success" | "error" | "info" } | null>(null);
@@ -68,9 +69,10 @@ function App() {
     try {
       setLoadingEmails(true);
       setLoadError("");
-      const [scheduled, sent] = await Promise.all([getScheduledEmails(), getSentEmails()]);
+      const [scheduled, sent, failed] = await Promise.all([getScheduledEmails(), getSentEmails(), getFailedEmails()]);
       setScheduledEmails(scheduled.emails || []);
       setSentEmails(sent.emails || []);
+      setFailedEmails(failed.emails || []);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Unable to load campaign data.");
     } finally {
@@ -123,7 +125,7 @@ function App() {
     return <LoginScreen />;
   }
 
-  const activeEmails = activeTab === "scheduled" ? scheduledEmails : sentEmails;
+  const activeEmails = activeTab === "scheduled" ? scheduledEmails : activeTab === "sent" ? sentEmails : failedEmails;
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -168,7 +170,7 @@ function App() {
           <div className="rounded-xl bg-white p-6 shadow-sm">
             <p className="text-sm text-slate-500">Failed</p>
             <p className="mt-2 text-3xl font-bold text-slate-900">
-              {sentEmails.filter((e) => e.status === "FAILED").length}
+              {failedEmails.length}
             </p>
           </div>
         </div>
@@ -191,6 +193,14 @@ function App() {
                 }`}
               >
                 Sent Emails
+              </button>
+              <button
+                onClick={() => setActiveTab("failed")}
+                className={`rounded-lg px-4 py-2 text-sm font-medium ${
+                  activeTab === "failed" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                Failed Emails
               </button>
             </div>
             <Button variant="ghost" onClick={() => void loadEmails()}>

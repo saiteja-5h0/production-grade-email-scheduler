@@ -272,13 +272,12 @@ router.get("/scheduled", async (req, res) => {
 
 router.get("/sent", async (req, res) => {
   try {
-    // "Sent Emails" view includes both SENT and FAILED so status is visible in one table
     const emails = await prisma.email.findMany({
       where: {
-        status: { in: ["SENT", "FAILED"] },
+        status: "SENT",
         campaign: { userId: req.user!.id },
       },
-      orderBy: [{ sentAt: "desc" }, { updatedAt: "desc" }],
+      orderBy: { sentAt: "desc" },
       include: {
         campaign: true,
       },
@@ -301,9 +300,22 @@ router.get("/sent", async (req, res) => {
 router.get("/failed", async (req, res) => {
   try {
     const emails = await prisma.email.findMany({
-      where: { status: "FAILED", campaign: { userId: req.user!.id } },
+      where: {
+        campaign: { userId: req.user!.id },
+        OR: [
+          { status: "FAILED" },
+          {
+            status: "SCHEDULED",
+            scheduledAt: { lt: new Date() },
+            dispatch: { is: { state: "PENDING", lastError: { not: null } } },
+          },
+        ],
+      },
       orderBy: { updatedAt: "desc" },
-      include: { campaign: true },
+      include: {
+        campaign: true,
+        dispatch: { select: { state: true, attempts: true, lastError: true } },
+      },
     });
 
     return res.json({ success: true, emails });

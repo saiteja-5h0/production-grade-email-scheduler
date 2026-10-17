@@ -13,7 +13,7 @@ const statusStyles: Record<Email["status"], string> = {
 
 type Props = {
   emails: Email[];
-  mode: "scheduled" | "sent";
+  mode: "scheduled" | "sent" | "failed";
   loading: boolean;
   error: string;
 };
@@ -41,7 +41,7 @@ export function EmailTable({ emails, mode, loading, error }: Props) {
   if (emails.length === 0) {
     return (
       <div className="p-10 text-center text-slate-500">
-        No {mode === "scheduled" ? "scheduled" : "sent"} emails yet.
+        No {mode === "scheduled" ? "scheduled" : mode === "sent" ? "sent" : "failed"} emails yet.
       </div>
     );
   }
@@ -56,13 +56,24 @@ export function EmailTable({ emails, mode, loading, error }: Props) {
           </div>
           <p className="text-sm text-slate-600">From: {email.campaign.senderEmail}</p>
           <p className="text-sm text-slate-600">
-            {mode === "scheduled" ? `Scheduled: ${formatDate(email.scheduledAt)}` : `Sent: ${formatDate(email.sentAt)}`}
+            {mode === "scheduled"
+              ? `Scheduled: ${formatDate(email.scheduledAt)}`
+              : mode === "sent"
+                ? `Sent: ${formatDate(email.sentAt)}`
+                : email.status === "FAILED"
+                  ? `Failed: ${formatDate(email.updatedAt ?? email.scheduledAt)}`
+                  : `Overdue since: ${formatDate(email.scheduledAt)}`}
           </p>
+          {mode === "failed" && (email.error || email.dispatch?.lastError) && (
+            <p className="text-sm text-red-700">{email.error || email.dispatch?.lastError}</p>
+          )}
           <span
-            className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[email.status]}`}
-            title={email.error || undefined}
+            className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-medium ${
+              mode === "failed" && email.status === "SCHEDULED" ? statusStyles.FAILED : statusStyles[email.status]
+            }`}
+            title={email.error || email.dispatch?.lastError || undefined}
           >
-            {email.status}
+            {mode === "failed" && email.status === "SCHEDULED" ? "NOT SENT" : email.status}
           </span>
         </div>
       ))}
