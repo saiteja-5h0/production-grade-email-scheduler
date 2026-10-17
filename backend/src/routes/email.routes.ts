@@ -177,6 +177,70 @@ router.post("/schedule", async (req, res) => {
   }
 });
 
+router.get("/jobs", async (req, res) => {
+  try {
+    const jobs = await prisma.emailDispatch.findMany({
+      where: { email: { campaign: { userId: req.user!.id } } },
+      orderBy: { updatedAt: "desc" },
+      take: 100,
+      select: {
+        emailId: true,
+        state: true,
+        runId: true,
+        attempts: true,
+        lastError: true,
+        createdAt: true,
+        updatedAt: true,
+        email: {
+          select: {
+            recipient: true,
+            subject: true,
+            scheduledAt: true,
+            status: true,
+            error: true,
+          },
+        },
+      },
+    });
+
+    return res.json({ success: true, jobs });
+  } catch (error) {
+    console.error("Get email jobs error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch email jobs",
+    });
+  }
+});
+
+router.post("/jobs/:emailId/retry", async (req, res) => {
+  try {
+    const job = await prisma.emailDispatch.findFirst({
+      where: {
+        emailId: req.params.emailId,
+        email: { campaign: { userId: req.user!.id } },
+      },
+      select: { emailId: true, state: true, email: { select: { status: true } } },
+    });
+    if (!job) return res.status(404).json({ success: false, message: "Email job not found" });
+    if (job.email.status !== "SCHEDULED" || job.state === "DISPATCHED") {
+      return res.status(409).json({ success: false, message: "This job cannot be safely retried from the dashboard" });
+    }
+
+    const result = await dispatchEmail(job.emailId);
+    if (!result.dispatched) {
+      return res.status(409).json({ success: false, message: "This job is already being dispatched" });
+    }
+    return res.status(202).json({ success: true, runId: result.runId });
+  } catch (error) {
+    console.error("Retry email workflow dispatch error:", error);
+    return res.status(503).json({
+      success: false,
+      message: "Vercel could not start this workflow. Check the latest job error and backend workflow configuration.",
+    });
+  }
+});
+
 router.get("/scheduled", async (req, res) => {
   try {
     const emails = await prisma.email.findMany({

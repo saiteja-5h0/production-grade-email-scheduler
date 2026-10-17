@@ -1,5 +1,22 @@
 export const API_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
+export type EmailJob = {
+  emailId: string;
+  state: "PENDING" | "CLAIMED" | "DISPATCHED";
+  runId: string | null;
+  attempts: number;
+  lastError: string | null;
+  createdAt: string;
+  updatedAt: string;
+  email: {
+    recipient: string;
+    subject: string;
+    scheduledAt: string;
+    status: "SCHEDULED" | "PROCESSING" | "SENT" | "FAILED";
+    error: string | null;
+  };
+};
+
 async function readResponse(response: Response) {
   const payload = await response.json().catch(() => null);
 
@@ -85,4 +102,13 @@ export async function getSentEmails() {
 
 export async function getFailedEmails() {
   return readResponse(await apiFetch("/api/emails/failed"));
+}
+
+export async function getEmailJobs(): Promise<EmailJob[]> {
+  const payload = await readResponse(await apiFetch("/api/emails/jobs"));
+  return payload.jobs || [];
+}
+
+export async function retryEmailJob(emailId: string) {
+  return readResponse(await apiFetch(`/api/emails/jobs/${encodeURIComponent(emailId)}/retry`, { method: "POST" }));
 }

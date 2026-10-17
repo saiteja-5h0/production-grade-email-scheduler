@@ -5,10 +5,12 @@ import { Button } from "./Button";
 type Props = {
   user: NonNullable<CurrentUser>;
   slackConnected: boolean;
+  activeView: "dashboard" | "jobs";
+  onNavigate: (view: "dashboard" | "jobs") => void;
   onLogout: () => void;
 };
 
-export function Header({ user, slackConnected, onLogout }: Props) {
+export function Header({ user, slackConnected, activeView, onNavigate, onLogout }: Props) {
   return (
     <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 bg-white px-8 py-4">
       <div>
@@ -26,6 +28,13 @@ export function Header({ user, slackConnected, onLogout }: Props) {
             <Button variant="secondary">Connect Slack</Button>
           </a>
         )}
+
+        <Button
+          variant={activeView === "jobs" ? "primary" : "secondary"}
+          onClick={() => onNavigate(activeView === "jobs" ? "dashboard" : "jobs")}
+        >
+          {activeView === "jobs" ? "Dashboard" : "Email Jobs"}
+        </Button>
 
         <div className="flex items-center gap-3">
           {user.avatar ? (

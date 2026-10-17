@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getMe, getScheduledEmails, getSentEmails, getSlackStatus, logout, type CurrentUser } from "./api";
+import { getEmailJobs, getMe, getScheduledEmails, getSentEmails, getSlackStatus, logout, retryEmailJob, type CurrentUser, type EmailJob } from "./api";
 import type { Email } from "./types";
 import { Header } from "./components/Header";
 import { LoginScreen } from "./components/LoginScreen";
@@ -7,11 +7,17 @@ import { Button } from "./components/Button";
 import { EmailTable } from "./components/EmailTable";
 import { ComposeModal } from "./components/ComposeModal";
 import { Toast } from "./components/Toast";
+import { WorkflowJobs } from "./components/WorkflowJobs";
 
 function App() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [user, setUser] = useState<CurrentUser>(null);
   const [slackConnected, setSlackConnected] = useState(false);
+  const [activeView, setActiveView] = useState<"dashboard" | "jobs">("dashboard");
+  const [jobs, setJobs] = useState<EmailJob[]>([]);
+  const [loadingJobs, setLoadingJobs] = useState(false);
+  const [jobsError, setJobsError] = useState("");
+  const [retryingEmailId, setRetryingEmailId] = useState<string | null>(null);
 
   const [showCompose, setShowCompose] = useState(false);
   const [activeTab, setActiveTab] = useState<"scheduled" | "sent">("scheduled");
@@ -26,6 +32,35 @@ function App() {
     setUser(currentUser);
     if (currentUser) {
       setSlackConnected(await getSlackStatus().catch(() => false));
+    }
+  }
+
+  async function loadJobs() {
+    try {
+      setLoadingJobs(true);
+      setJobsError("");
+      setJobs(await getEmailJobs());
+    } catch (error) {
+      setJobsError(error instanceof Error ? error.message : "Unable to load email jobs.");
+    } finally {
+      setLoadingJobs(false);
+    }
+  }
+
+  async function handleRetryJob(emailId: string) {
+    try {
+      setRetryingEmailId(emailId);
+      await retryEmailJob(emailId);
+      setToast({ message: "Workflow started. Check Email Jobs for its status.", tone: "success" });
+    } catch (error) {
+      setToast({
+        message: error instanceof Error ? error.message : "Could not restart the workflow.",
+        tone: "error",
+      });
+    } finally {
+      setRetryingEmailId(null);
+      void loadEmails();
+      void loadJobs();
     }
   }
 
@@ -60,7 +95,19 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (user) void loadEmails();
+    if (user) {
+      void loadEmails();
+      void loadJobs();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const timer = window.setInterval(() => {
+      void loadEmails();
+      void loadJobs();
+    }, 15_000);
+    return () => window.clearInterval(timer);
   }, [user]);
 
   async function handleLogout() {
@@ -80,8 +127,24 @@ function App() {
 
   return (
     <div className="min-h-screen bg-slate-100">
-      <Header user={user} slackConnected={slackConnected} onLogout={handleLogout} />
+      <Header
+        user={user}
+        slackConnected={slackConnected}
+        activeView={activeView}
+        onNavigate={setActiveView}
+        onLogout={handleLogout}
+      />
 
+      {activeView === "jobs" ? (
+        <WorkflowJobs
+          jobs={jobs}
+          loading={loadingJobs}
+          error={jobsError}
+          onRefresh={() => void loadJobs()}
+          onRetry={(emailId) => void handleRetryJob(emailId)}
+          retryingEmailId={retryingEmailId}
+        />
+      ) : (
       <main className="mx-auto max-w-6xl p-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -138,11 +201,16 @@ function App() {
           <EmailTable emails={activeEmails} mode={activeTab} loading={loadingEmails} error={loadError} />
         </div>
       </main>
+      )}
 
       <ComposeModal
         open={showCompose}
         onClose={() => setShowCompose(false)}
-        onScheduled={(message) => setToast({ message, tone: "success" })}
+        onScheduled={(message, pendingDispatches) => {
+          setToast({ message, tone: pendingDispatches > 0 ? "info" : "success" });
+          void loadEmails();
+          void loadJobs();
+        }}
       />
 
       {toast && <Toast message={toast.message} tone={toast.tone} onDismiss={() => setToast(null)} />}

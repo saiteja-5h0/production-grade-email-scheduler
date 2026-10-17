@@ -7,7 +7,7 @@ import { scheduleCampaign } from "../api";
 type Props = {
   open: boolean;
   onClose: () => void;
-  onScheduled: (message: string) => void;
+  onScheduled: (message: string, pendingDispatches: number) => void;
 };
 
 export function ComposeModal({ open, onClose, onScheduled }: Props) {
@@ -67,7 +67,11 @@ export function ComposeModal({ open, onClose, onScheduled }: Props) {
         delayMs,
         hourlyLimit,
       });
-      onScheduled(`Campaign scheduled successfully. ${result.recipientCount} emails queued.`);
+      const pendingDispatches = Number(result.pendingDispatches || 0);
+      const message = pendingDispatches > 0
+        ? `Campaign saved, but ${pendingDispatches} email workflow${pendingDispatches === 1 ? "" : "s"} could not start. Open Email Jobs for details.`
+        : result.message || `Campaign scheduled successfully. ${result.recipientCount} emails queued.`;
+      onScheduled(message, pendingDispatches);
       reset();
       onClose();
     } catch (err) {
