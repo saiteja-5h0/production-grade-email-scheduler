@@ -190,6 +190,13 @@ export async function markEmailSent(emailId: string, token: string, messageId: s
   });
 }
 
+export async function recordSimulatedEmailSent(emailId: string, token: string) {
+  return prisma.email.updateMany({
+    where: { id: emailId, status: "PROCESSING", processingToken: token },
+    data: { status: "SENT", sentAt: new Date(), messageId: null, previewUrl: null, processingToken: null, processingLeaseUntil: null, error: null },
+  });
+}
+
 export async function recordEmailFailure(emailId: string, token: string, message: string) {
   return prisma.email.updateMany({
     where: { id: emailId, status: "PROCESSING", processingToken: token },

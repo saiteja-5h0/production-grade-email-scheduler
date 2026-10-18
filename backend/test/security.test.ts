@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { hasAuthenticatedSession } from "../src/middleware/access-control.js";
 import { buildEmailSearchWhere } from "../src/services/email-search-query.js";
-import { canClaimEmail, deliveryBlockReason, effectiveCampaignStart, emailWorkflowHookToken, getCapacityBlock, isDispatchReclaimable, retryDelay } from "../src/services/email-job-policy.js";
+import { canClaimEmail, deliveryBlockReason, effectiveCampaignStart, emailWorkflowHookToken, getCapacityBlock, isDispatchReclaimable, retryDelay, simulatedDeliveryShouldFail } from "../src/services/email-job-policy.js";
 import { isRetryableResendError, sendEmail } from "../src/services/email.service.js";
 import { createUnsubscribeToken, verifyUnsubscribeToken } from "../src/services/unsubscribe.service.js";
 
@@ -67,6 +67,13 @@ test("workflow token and retry delay are stable and bounded", () => {
   assert.equal(retryDelay(1), 1000);
   assert.equal(retryDelay(3), 4000);
   assert.equal(retryDelay(99), 60_000);
+});
+
+test("simulated delivery failure uses a random 20 percent threshold", () => {
+  assert.equal(simulatedDeliveryShouldFail(() => 0), true);
+  assert.equal(simulatedDeliveryShouldFail(() => 0.1999), true);
+  assert.equal(simulatedDeliveryShouldFail(() => 0.2), false);
+  assert.equal(simulatedDeliveryShouldFail(() => 0.9999), false);
 });
 
 test("campaign scheduling supports immediate and future requested starts", () => {

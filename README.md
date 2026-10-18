@@ -8,7 +8,7 @@ A React/Vite email scheduling dashboard backed by an Express API, PostgreSQL/Pri
 - API: Express exported to Nitro's Vercel preset as a Vercel Function.
 - Database: PostgreSQL through Prisma. `DATABASE_URL` is the pooled runtime URL; `DIRECT_URL` is for migrations.
 - Scheduling: the API commits campaigns, email rows, and outbox rows together. One durable Workflow is dispatched per email and sleeps until `scheduledAt`.
-- Delivery: Resend HTTP API in production; Ethereal is restricted to non-production testing.
+- Email outcome: simulated when the workflow processes each email. About 80% become `SENT` and about 20% become `FAILED`, selected randomly at processing time. No real email is sent.
 - Search: parameterized Prisma/PostgreSQL search scoped to the authenticated campaign owner.
 - Authentication: Google OAuth, HttpOnly session cookie, and database-backed one-time OAuth state. Slack OAuth remains supported.
 
@@ -16,7 +16,7 @@ BullMQ, Redis, Bull Board, and Elasticsearch are no longer application dependenc
 
 ## Local Development
 
-Prerequisites: Node.js 22.12+ and PostgreSQL. Copy `backend/.env.example` to `backend/.env`, provide local PostgreSQL and OAuth values, and keep credentials out of source control. For non-production email previews, use the Ethereal settings and set `EMAIL_PROVIDER=ethereal`.
+Prerequisites: Node.js 22.12+ and PostgreSQL. Copy `backend/.env.example` to `backend/.env`, provide local PostgreSQL and OAuth values, and keep credentials out of source control.
 
 ```sh
 cd backend
@@ -48,20 +48,18 @@ The Vite development proxy targets `VITE_API_URL` or `http://localhost:4000`. Ap
 - `POST /api/emails/webhooks/resend`
 - `GET /api/cron/recover-email-dispatches` (requires `CRON_SECRET`)
 
-All campaign/email reads and search results require a valid session and are scoped to its user. Campaigns require explicit recipient-consent confirmation and are limited to 100 recipients per request. Existing rows retain `UNKNOWN` consent and will not be sent automatically.
+All campaign/email reads and search results require a valid session and are scoped to its user. Campaigns require explicit recipient-consent confirmation and are limited to 100 recipients per request. Every outcome is simulated; no email provider is called and no email is sent to recipients.
 
 Search matches recipient, sender, subject, body, or a known email status. Results remain owner-scoped, ordered by scheduled time descending, and capped at 10 as in the previous Elasticsearch default response size.
 
 ## Reliability and Safety
 
 - The PostgreSQL outbox survives a successful campaign transaction even when workflow dispatch fails; the recovery endpoint retries pending dispatches.
-- PostgreSQL leases/claims and a stable workflow Hook token prevent concurrent attempts from intentionally sending the same email.
-- Sender minimum delays, UTC hourly limits, a global provider request limit, and the configured daily Resend limit are reserved atomically in PostgreSQL.
-- Resend idempotency keys reduce duplicates for 24 hours. Delivery is not exactly-once if the provider accepts a message but the API loses the result beyond that window.
-- Unsubscribe links and signed provider webhooks populate a global suppression table. Bounce, complaint, and suppression events prevent future sends to the recipient.
-- Test mode refuses all provider sends. Real-email tests are not part of automated tests.
+- PostgreSQL leases/claims and a stable workflow Hook token prevent concurrent processing of the same email.
+- Sender minimum delays and UTC hourly limits are reserved atomically in PostgreSQL; Slack can report a sender rate limit when configured.
+- The dashboard reads saved `SCHEDULED`, `PROCESSING`, `SENT`, and `FAILED` records from PostgreSQL. `SENT` means simulated success only.
 
-Resend requires a verified sender domain. Its currently published Free transactional quota is 100 messages/day and 3,000/month. Resend distinguishes transactional from marketing messages; confirm account approval and campaign-purpose requirements before production bulk sending. Vercel Hobby Workflows currently include 50,000 events and 1 GB data written per month. Vercel Hobby Cron is daily only; choose a paid plan or different recovery arrangement if faster recovery is required. Hobby use is restricted to personal, non-commercial projects.
+Vercel Hobby Cron is daily only; pending dispatch recovery may therefore take about a day. Choose a paid plan or a different recovery arrangement if faster recovery is required. Hobby use is restricted to personal, non-commercial projects.
 
 ## Configuration Names
 

@@ -17,6 +17,10 @@ export function retryDelay(attempt: number) {
   return Math.min(60_000, 1000 * 2 ** Math.max(0, attempt - 1));
 }
 
+export function simulatedDeliveryShouldFail(random: () => number = Math.random) {
+  return random() < 0.2;
+}
+
 export function effectiveCampaignStart(requestedAt: Date, now: Date) {
   return new Date(Math.max(requestedAt.getTime(), now.getTime() + 1000));
 }

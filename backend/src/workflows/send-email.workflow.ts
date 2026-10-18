@@ -1,19 +1,17 @@
-import { createHook, FatalError, getStepMetadata, RetryableError, sleep } from "workflow";
+import { createHook, FatalError, getStepMetadata, sleep } from "workflow";
 import { start } from "workflow/api";
 import { prisma } from "../config/database.js";
-import { EmailProviderError, sendEmail } from "../services/email.service.js";
 import {
   claimEmailForSend,
   deferEmailClaim,
-  markEmailSent,
   recordEmailFailure,
+  recordSimulatedEmailSent,
   reserveDeliveryCapacity,
   reserveRateLimitNotification,
 } from "../services/email-job.service.js";
-import { createUnsubscribeToken } from "../services/unsubscribe.service.js";
-import { emailWorkflowHookToken, retryDelay } from "../services/email-job-policy.js";
+import { emailWorkflowHookToken, simulatedDeliveryShouldFail } from "../services/email-job-policy.js";
 
-type SendResult = "sent" | "already-finished" | "suppressed";
+type SendResult = "sent" | "failed" | "already-finished" | "suppressed";
 type DeliveryResult = { status: SendResult } | { status: "deferred"; retryAt: string };
 
 export async function sendScheduledEmail(emailId: string): Promise<SendResult | "deferred"> {
@@ -59,7 +57,7 @@ async function getEmailSchedule(emailId: string) {
 
 async function deliverEmail(emailId: string): Promise<DeliveryResult> {
   "use step";
-  const { stepId, attempt } = getStepMetadata();
+  const { stepId } = getStepMetadata();
   const token = stepId;
   const email = await claimEmailForSend(emailId, token);
   if (!email) return { status: "already-finished" };
@@ -102,32 +100,14 @@ async function deliverEmail(emailId: string): Promise<DeliveryResult> {
     return { status: "deferred", retryAt: capacity.retryAt.toISOString() };
   }
 
-  const unsubscribeUrl = `${process.env.PUBLIC_API_URL || "http://localhost:4000"}/api/emails/unsubscribe/${createUnsubscribeToken(email.id)}`;
-  try {
-    const result = await sendEmail({
-      emailId: email.id,
-      consentConfirmed: true,
-      from: email.campaign.senderEmail,
-      to: email.recipient,
-      subject: email.subject,
-      body: email.body,
-      unsubscribeUrl,
-    });
-    const saved = await markEmailSent(emailId, token, result.messageId, result.previewUrl);
-    if (saved.count !== 1) throw new Error("Email claim was lost after provider accepted the send");
-    return { status: "sent" };
-  } catch (error) {
-    if (error instanceof EmailProviderError && !error.retryable) {
-      await recordEmailFailure(emailId, token, `${error.code}: ${error.message}`);
-      throw new FatalError(error.message);
-    }
-    if (error instanceof EmailProviderError && error.retryAfterMs !== undefined) {
-      throw new RetryableError(error.message, { retryAfter: error.retryAfterMs });
-    }
-    throw error instanceof RetryableError
-      ? error
-      : new RetryableError(error instanceof Error ? error.message : "Transient email provider failure", { retryAfter: retryDelay(attempt) });
+  if (simulatedDeliveryShouldFail()) {
+    await recordEmailFailure(emailId, token, "Simulated delivery failure (random demo outcome)");
+    return { status: "failed" };
   }
+
+  const saved = await recordSimulatedEmailSent(emailId, token);
+  if (saved.count !== 1) throw new Error("Email processing claim was lost before the simulated result was saved");
+  return { status: "sent" };
 }
 
 deliverEmail.maxRetries = 2;

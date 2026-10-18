@@ -245,7 +245,7 @@ router.get("/scheduled", async (req, res) => {
   try {
     const emails = await prisma.email.findMany({
       where: {
-        status: "SCHEDULED",
+        status: { in: ["SCHEDULED", "PROCESSING"] },
         campaign: { userId: req.user!.id },
       },
       orderBy: {

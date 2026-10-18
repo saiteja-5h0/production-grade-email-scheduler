@@ -73,8 +73,9 @@ export function EmailTable({ emails, mode, loading, error }: Props) {
             }`}
             title={email.error || email.dispatch?.lastError || undefined}
           >
-            {mode === "failed" && email.status === "SCHEDULED" ? "NOT SENT" : email.status}
+            {mode === "failed" && email.status === "SCHEDULED" ? "NOT SENT" : email.status === "SENT" ? "SENT (SIMULATED)" : email.status}
           </span>
+          <p className="text-xs text-slate-500 md:col-span-4">Student project demo: Delivery is simulated. No real email is sent.</p>
         </div>
       ))}
     </div>

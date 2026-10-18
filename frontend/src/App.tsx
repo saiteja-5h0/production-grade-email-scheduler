@@ -151,7 +151,7 @@ function App() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-3xl font-bold text-slate-900">Dashboard</h2>
-            <p className="mt-1 text-slate-500">Manage your scheduled email campaigns.</p>
+            <p className="mt-1 text-slate-500">Manage your scheduled email campaigns. This student project simulates delivery; no real email is sent.</p>
           </div>
           <Button onClick={() => setShowCompose(true)}>+ Compose Email</Button>
         </div>
@@ -162,7 +162,7 @@ function App() {
             <p className="mt-2 text-3xl font-bold text-slate-900">{scheduledEmails.length}</p>
           </div>
           <div className="rounded-xl bg-white p-6 shadow-sm">
-            <p className="text-sm text-slate-500">Sent</p>
+            <p className="text-sm text-slate-500">Sent (simulated)</p>
             <p className="mt-2 text-3xl font-bold text-slate-900">
               {sentEmails.filter((e) => e.status === "SENT").length}
             </p>
@@ -192,7 +192,7 @@ function App() {
                   activeTab === "sent" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
-                Sent Emails
+                Sent Emails (simulated)
               </button>
               <button
                 onClick={() => setActiveTab("failed")}
