@@ -5,6 +5,8 @@
 > Student project: email outcomes are simulated. No real email is sent.
 
 
+**Vercel production branch:** `vercel-migration`. 
+
 A React/Vite email scheduling dashboard backed by an Express API, PostgreSQL/Prisma, and durable Vercel Workflows.
 
 ## Active Architecture
