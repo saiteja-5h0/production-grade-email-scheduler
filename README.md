@@ -1,6 +1,6 @@
 # Production-Grade Email Scheduler
 
-**Live demo:** [Open the dashboard](https://frontend-three-ebon-77.vercel.app/) · [API health](https://production-grade-email-scheduler-ap.vercel.app/health)
+**Live demo:** [Open the dashboard](https://frontend-three-ebon-77.vercel.app/) · [API health](https://production-grade-email-scheduler-ap.vercel.app/health) · **GitHub:** [production-grade-email-scheduler](https://github.com/saiteja-5h0/production-grade-email-scheduler)
 
 > Student project: email outcomes are simulated. No real email is sent.
 
