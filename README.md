@@ -1,5 +1,10 @@
 # Production-Grade Email Scheduler
 
+**Live demo:** [Open the dashboard](https://frontend-three-ebon-77.vercel.app/) · [API health](https://production-grade-email-scheduler-ap.vercel.app/health)
+
+> Student project: email outcomes are simulated. No real email is sent.
+
+
 A React/Vite email scheduling dashboard backed by an Express API, PostgreSQL/Prisma, and durable Vercel Workflows.
 
 ## Active Architecture
